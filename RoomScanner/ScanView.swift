@@ -43,6 +43,35 @@ struct ScanView: View {
                 Spacer()
                 
                 VStack(spacing: 12) {
+                                        // Voice guidance indicator
+                                        if !manager.voiceGuidance.currentGuidance.isEmpty {
+                                            HStack {
+                                                Image(systemName: manager.voiceGuidance.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                                                    .foregroundColor(.white)
+                                                Text(manager.voiceGuidance.currentGuidance)
+                                                    .font(.caption)
+                                                    .foregroundColor(.white)
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(Color.blue.opacity(0.8))
+                                            .cornerRadius(8)
+                                        }
+                    
+                                        // Voice guidance toggle
+                                        Button(action: { manager.voiceGuidance.toggleVoiceGuidance() }) {
+                                            HStack {
+                                                Image(systemName: manager.voiceGuidance.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                                                Text(manager.voiceGuidance.isEnabled ? "Voice On" : "Voice Off")
+                                                    .fontWeight(.medium)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                            .padding()
+                                            .background(manager.voiceGuidance.isEnabled ? Color.blue : Color.gray)
+                                            .foregroundColor(.white)
+                                            .cornerRadius(10)
+                                        }
+                    
                     Button(action: { showStopConfirm = true }) {
                         HStack {
                             Image(systemName: "stop.circle.fill")
@@ -92,6 +121,11 @@ struct ScanView: View {
         return String(format: "%d:%02d", minutes, secs)
     }
 }
+            
+            // Periodic voice guidance check (every 30 seconds)
+            if scanDuration.truncatingRemainder(dividingBy: 30) < 0.2 {
+                manager.voiceGuidance.checkScanDuration()
+            }
 
 #Preview {
     if #available(iOS 16.0, *) {

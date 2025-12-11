@@ -86,6 +86,16 @@ struct RoomCaptureViewWrapper: UIViewRepresentable {
 
         func captureSession(_ session: RoomCaptureSession, didUpdate room: CapturedRoom) {
             // Keep a reference to the latest room so we can use it on completion
+            
+                        // Provide real-time voice guidance
+                        Task { @MainActor in
+                            let wallCount = room.walls.count
+                            manager.voiceGuidance.announceWallDetection(wallNumber: wallCount)
+                
+                            // Estimate coverage based on wall count (rough heuristic)
+                            let estimatedCoverage = min(100, wallCount * 20)
+                            manager.voiceGuidance.updateCoverage(percentage: estimatedCoverage)
+                        }
             lastCapturedRoom = room
         }
 

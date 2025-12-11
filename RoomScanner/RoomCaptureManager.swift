@@ -25,6 +25,9 @@ class RoomCaptureManager: ObservableObject {
     
     // Store the original CapturedRoom for USDZ export
     var lastCapturedRoom: CapturedRoom?
+        // Voice guidance
+        let voiceGuidance = VoiceGuidanceManager()
+    
     
     // MARK: - Private Properties
     
@@ -63,6 +66,9 @@ class RoomCaptureManager: ObservableObject {
         
         isScanning = true
         statusMessage = "Point camera at room. Move slowly around all walls..."
+            // Start voice guidance
+            voiceGuidance.startScanning()
+        
         
         // Start the RoomPlan session when the capture view registers its session
         if let session = captureSession {
@@ -83,6 +89,10 @@ class RoomCaptureManager: ObservableObject {
         sessionIsRunning = false
         isScanning = false
         statusMessage = "Processing scan..."
+        
+            // Stop voice guidance
+            voiceGuidance.stopScanning()
+        
         print("✅ Scan stopped")
     }
     
@@ -304,6 +314,9 @@ class RoomCaptureManager: ObservableObject {
         }
     }
 }
+        
+    // Announce completion with voice
+    voiceGuidance.scanCompleted(wallCount: summary.walls.count, openingCount: summary.openings.count)
 
 // MARK: - Data Models
 
