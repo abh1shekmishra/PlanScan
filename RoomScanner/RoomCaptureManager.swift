@@ -232,7 +232,7 @@ class RoomCaptureManager: ObservableObject {
         do {
             print("💾 Exporting USDZ...")
             let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            let fileName = "RoomScan_\(dateString()).usdz"
+            let fileName = "PlanScan_\(dateString()).usdz"
             let fileURL = documentsURL.appendingPathComponent(fileName)
             
             try await lastRoom.export(to: fileURL, exportOptions: .model)
@@ -249,6 +249,24 @@ class RoomCaptureManager: ObservableObject {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd_HHmmss"
         return formatter.string(from: Date())
+    }
+
+    // MARK: - Floor Plan Export
+
+    @available(iOS 16.0, *)
+    func exportToFloorPlan() -> URL? {
+        guard let lastSummary = capturedRooms.last else {
+            errorMessage = "No room data available for floor plan"
+            return nil
+        }
+
+        do {
+            return try ModelExporter.exportFloorPlan(room: lastSummary, format: .png)
+        } catch {
+            print("❌ Floor plan export failed: \(error)")
+            errorMessage = "Floor plan export failed: \(error.localizedDescription)"
+            return nil
+        }
     }
 }
 

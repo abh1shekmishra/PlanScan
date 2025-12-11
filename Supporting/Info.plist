@@ -148,7 +148,7 @@
 	
 	<!-- Supports Opening Documents -->
 	<key>CFBundleDisplayName</key>
-	<string>RoomScanner</string>
+	<string>PlanScan</string>
 	
 	<!-- Bundle Identifier -->
 	<key>CFBundleIdentifier</key>
@@ -156,7 +156,7 @@
 	
 	<!-- Bundle Name -->
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>PlanScan</string>
 	
 	<!-- Bundle Version -->
 	<key>CFBundleVersion</key>

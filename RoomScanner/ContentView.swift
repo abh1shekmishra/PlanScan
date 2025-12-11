@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var exportedURL: URL?
     @State private var isExportingUSDZ = false
     @State private var isExportingJSON = false
+    @State private var isExportingFloorPlan = false
     
     var body: some View {
         ZStack {
@@ -100,6 +101,23 @@ struct ContentView: View {
                                     .foregroundColor(.white)
                                     .cornerRadius(10)
                                     .disabled(isExportingUSDZ)
+                                }
+
+                                Button(action: exportFloorPlan) {
+                                    HStack {
+                                        Image(systemName: "square.grid.2x2")
+                                        if isExportingFloorPlan {
+                                            ProgressView()
+                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        }
+                                        Text(isExportingFloorPlan ? "Exporting..." : "Export Floor Plan")
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.purple)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(10)
+                                    .disabled(isExportingFloorPlan || isExportingJSON || isExportingUSDZ)
                                 }
                                 
                                 Button(action: resetScan) {
@@ -195,6 +213,25 @@ struct ContentView: View {
             }
         }
     }
+
+    private func exportFloorPlan() {
+        print("📐 Exporting floor plan...")
+        Task {
+            await MainActor.run { isExportingFloorPlan = true }
+            if let url = manager.exportToFloorPlan() {
+                print("✅ Floor plan exported to: \(url.path)")
+                await MainActor.run {
+                    exportedURL = url
+                    showingShareSheet = true
+                    isExportingFloorPlan = false
+                }
+            } else {
+                await MainActor.run {
+                    isExportingFloorPlan = false
+                }
+            }
+        }
+    }
     
     private func resetScan() {
         print("🔄 Starting new scan...")
@@ -215,7 +252,7 @@ struct WelcomeView: View {
                 .font(.system(size: 80))
                 .foregroundColor(.blue)
             
-            Text("RoomScanner")
+            Text("PlanScan")
                 .font(.system(size: 32, weight: .bold))
             
             Text("Scan and measure indoor spaces using LiDAR")

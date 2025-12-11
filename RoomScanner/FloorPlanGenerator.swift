@@ -72,6 +72,10 @@ class FloorPlanGenerator {
         
         // Draw scale and dimensions
         drawScale(context: context, size: size, transform: transform, bounds: bounds)
+
+        // Draw title and north arrow for standard floor-plan look
+        drawTitle(context: context, size: size, roomId: roomSummary.roomId)
+        drawNorthArrow(context: context, size: size)
         
         // Get the image
         let floorPlan = UIGraphicsGetImageFromCurrentImageContext()
@@ -87,21 +91,36 @@ class FloorPlanGenerator {
         var maxX = -Float.infinity
         var minZ = Float.infinity
         var maxZ = -Float.infinity
-        
-        // Get bounds from walls
+        let up = simd_float3(0, 1, 0)
+        let defaultThickness: Float = 0.15
+
+        // Get bounds from oriented wall rectangles
         for wall in roomSummary.walls {
-            let x = wall.position.x
-            let z = wall.position.z
-            
-            minX = min(minX, x)
-            maxX = max(maxX, x)
-            minZ = min(minZ, z)
-            maxZ = max(maxZ, z)
-            
-            // Account for wall length
-            if let length = wall.length {
-                minZ = min(minZ, z - length/2)
-                maxZ = max(maxZ, z + length/2)
+            let length = wall.length ?? 1.0
+            let thickness = wall.thickness ?? defaultThickness
+            let normal = simd_normalize(wall.normal)
+            // Tangent runs along the wall (perpendicular to normal, in the floor plane)
+            var tangent = simd_normalize(simd_cross(up, normal))
+            if simd_length(tangent) < 1e-3 {
+                tangent = simd_float3(1, 0, 0) // fallback if normal is degenerate
+            }
+
+            let halfL = length / 2
+            let halfT = thickness / 2
+            let center = wall.position
+
+            let corners: [simd_float3] = [
+                center + tangent * halfL + normal * halfT,
+                center + tangent * halfL - normal * halfT,
+                center - tangent * halfL - normal * halfT,
+                center - tangent * halfL + normal * halfT
+            ]
+
+            for c in corners {
+                minX = min(minX, c.x)
+                maxX = max(maxX, c.x)
+                minZ = min(minZ, c.z)
+                maxZ = max(maxZ, c.z)
             }
         }
         
@@ -169,22 +188,27 @@ class FloorPlanGenerator {
     
     private static func drawWalls(context: CGContext, walls: [WallSummary], transform: CGAffineTransform) {
         wallColor.setFill()
+        let up = simd_float3(0, 1, 0)
+        let defaultThickness: Float = 0.15
         
         for wall in walls {
             let position = wall.position
-            let width = wall.thickness ?? 0.15 // Use thickness as wall width
+            let thickness = wall.thickness ?? defaultThickness
             let length = wall.length ?? 1.0
-            
-            // Wall corners (in X-Z plane, top-down view)
-            let halfWidth = width / 2
-            let halfLength = length / 2
-            
-            let corners = [
-                simd_float3(position.x - halfWidth, 0, position.z - halfLength),
-                simd_float3(position.x + halfWidth, 0, position.z - halfLength),
-                simd_float3(position.x + halfWidth, 0, position.z + halfLength),
-                simd_float3(position.x - halfWidth, 0, position.z + halfLength)
-            ]
+            let normal = simd_normalize(wall.normal)
+            var tangent = simd_normalize(simd_cross(up, normal))
+            if simd_length(tangent) < 1e-3 {
+                tangent = simd_float3(1, 0, 0)
+            }
+
+            let halfT = thickness / 2
+            let halfL = length / 2
+
+            let c0 = position + tangent * halfL + normal * halfT
+            let c1 = position + tangent * halfL - normal * halfT
+            let c2 = position - tangent * halfL - normal * halfT
+            let c3 = position - tangent * halfL + normal * halfT
+            let corners = [c0, c1, c2, c3]
             
             let path = UIBezierPath()
             let p0 = worldToImage(corners[0], transform: transform)
@@ -201,9 +225,13 @@ class FloorPlanGenerator {
     }
     
     private static func drawOpenings(context: CGContext, openings: [OpeningSummary], transform: CGAffineTransform) {
+        let up = simd_float3(0, 1, 0)
         for opening in openings {
             let position = opening.position
             let width = opening.width
+            // Openings currently lack an explicit normal in the summary; approximate by aligning along X axis.
+            // If we later add per-opening normals, replace this with a proper tangent like for walls.
+            let tangent = simd_float3(1, 0, 0)
             
             if opening.type == "door" {
                 // Draw doors as blue lines
@@ -216,8 +244,11 @@ class FloorPlanGenerator {
                 context.setLineDash(phase: 0, lengths: [5, 5])
             }
             
-            let start = worldToImage(simd_float3(position.x - width/2, 0, position.z), transform: transform)
-            let end = worldToImage(simd_float3(position.x + width/2, 0, position.z), transform: transform)
+            let halfW = width / 2
+            let startWorld = position - tangent * halfW
+            let endWorld = position + tangent * halfW
+            let start = worldToImage(startWorld, transform: transform)
+            let end = worldToImage(endWorld, transform: transform)
             
             context.move(to: start)
             context.addLine(to: end)
@@ -267,6 +298,36 @@ class FloorPlanGenerator {
         ]
         let dimAttributedString = NSAttributedString(string: dimensionsText, attributes: dimAttributes)
         dimAttributedString.draw(at: CGPoint(x: size.width - 200, y: size.height - 40))
+    }
+
+    private static func drawTitle(context: CGContext, size: CGSize, roomId: String) {
+        let title = "Floor Plan – \(roomId)"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 18, weight: .semibold),
+            .foregroundColor: textColor
+        ]
+        let attributedString = NSAttributedString(string: title, attributes: attributes)
+        attributedString.draw(at: CGPoint(x: 20, y: 20))
+    }
+
+    private static func drawNorthArrow(context: CGContext, size: CGSize) {
+        // Simple north arrow top-right
+        let arrowCenter = CGPoint(x: size.width - 40, y: 60)
+        let arrowSize: CGFloat = 20
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: arrowCenter.x, y: arrowCenter.y - arrowSize))
+        path.addLine(to: CGPoint(x: arrowCenter.x - arrowSize * 0.6, y: arrowCenter.y + arrowSize * 0.6))
+        path.addLine(to: CGPoint(x: arrowCenter.x + arrowSize * 0.6, y: arrowCenter.y + arrowSize * 0.6))
+        path.close()
+        wallColor.setFill()
+        path.fill()
+
+        let nAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 12, weight: .bold),
+            .foregroundColor: textColor
+        ]
+        let nString = NSAttributedString(string: "N", attributes: nAttributes)
+        nString.draw(at: CGPoint(x: arrowCenter.x - 5, y: arrowCenter.y + arrowSize * 0.7))
     }
     
     // MARK: - Export to File

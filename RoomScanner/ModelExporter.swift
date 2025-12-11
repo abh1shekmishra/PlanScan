@@ -21,7 +21,7 @@ struct ModelExporter {
         
         // Create export data structure
         let exportData = ExportData(
-            project: "RoomScanner",
+            project: "PlanScan",
             timestamp: ISO8601DateFormatter().string(from: Date()),
             device: getDeviceModel(),
             iosVersion: getIOSVersion(),
@@ -36,7 +36,7 @@ struct ModelExporter {
         let jsonData = try encoder.encode(exportData)
         
         // Save to documents directory
-        let filename = "RoomScan_\(dateString()).json"
+        let filename = "PlanScan_\(dateString()).json"
         let fileURL = try saveToDocuments(data: jsonData, filename: filename)
         
         print("✅ JSON exported to: \(fileURL.path)")
@@ -46,6 +46,31 @@ struct ModelExporter {
     /// Export single room to JSON
     static func exportJSON(room: CapturedRoomSummary) throws -> URL {
         return try exportJSON(rooms: [room])
+    }
+
+    // MARK: - Floor Plan Export
+
+    /// Export a 2D floor plan image (PNG or JPEG) for a captured room summary
+    @available(iOS 16.0, *)
+    static func exportFloorPlan(room: CapturedRoomSummary, format: FloorPlanFormat = .png) throws -> URL {
+        guard let image = FloorPlanGenerator.generateFloorPlan(from: room) else {
+            throw ExportError.generationFailed
+        }
+        let fileURL = FloorPlanGenerator.saveFloorPlan(image, format: format == .png ? .png : .jpeg)
+        guard let url = fileURL else {
+            throw ExportError.saveFailed
+        }
+        return url
+    }
+
+    enum FloorPlanFormat {
+        case png
+        case jpeg
+    }
+
+    enum ExportError: Error {
+        case generationFailed
+        case saveFailed
     }
     
     // MARK: - Utility Functions
