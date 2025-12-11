@@ -152,6 +152,11 @@ struct ContentView: View {
                                     .cornerRadius(10)
                                 }
                                 
+                                // Quality Report Section
+                                if let report = room.qualityReport {
+                                    ScanQualityView(report: report)
+                                }
+                                
                                 // Wall Details Section
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("Wall Details")
@@ -692,6 +697,132 @@ struct FloorPlanViewer: View {
                 floorPlanImage = image
                 isGenerating = false
             }
+        }
+    }
+}
+
+// MARK: - Scan Quality View
+@available(iOS 16.0, *)
+struct ScanQualityView: View {
+    let report: ScanQualityReport
+    @State private var showDetails = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Scan Quality & Accuracy")
+                    .font(.headline)
+                Spacer()
+                Button(action: { showDetails.toggle() }) {
+                    Image(systemName: showDetails ? "chevron.up" : "chevron.down")
+                        .foregroundColor(.blue)
+                }
+            }
+            
+            // Overall Quality Badge
+            HStack(spacing: 16) {
+                Circle()
+                    .fill(qualityColor(report.overallQuality))
+                    .frame(width: 12, height: 12)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(report.overallQuality.description)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                    Text("Quality Score: \(report.qualityScore)/100")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(Int(report.coveragePercentage))%")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                    Text("Coverage")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            if showDetails {
+                Divider()
+                
+                // Issues Section
+                if !report.issues.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Issues Found (\(report.issues.count))")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        
+                        ForEach(report.issues.prefix(5)) { issue in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: issue.severity.icon)
+                                    .foregroundColor(issueColor(issue.severity))
+                                    .font(.caption)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(issue.title)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                    Text(issue.description)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        
+                        if report.issues.count > 5 {
+                            Text("...and \(report.issues.count - 5) more")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Divider()
+                }
+                
+                // Recommendations
+                if !report.recommendations.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Recommendations")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        
+                        ForEach(report.recommendations, id: \.self) { recommendation in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "lightbulb.fill")
+                                    .foregroundColor(.yellow)
+                                    .font(.caption)
+                                
+                                Text(recommendation)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
+    }
+    
+    private func qualityColor(_ quality: ScanQuality) -> Color {
+        switch quality {
+        case .high: return .green
+        case .medium: return .orange
+        case .low: return .red
+        }
+    }
+    
+    private func issueColor(_ severity: ValidationIssue.IssueSeverity) -> Color {
+        switch severity {
+        case .critical: return .red
+        case .warning: return .orange
+        case .info: return .blue
         }
     }
 }

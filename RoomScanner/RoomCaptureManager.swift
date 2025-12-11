@@ -114,7 +114,11 @@ class RoomCaptureManager: ObservableObject {
         self.lastCapturedRoom = capturedRoom
         
         // Convert to summary format
-        let summary = convertRoomToSummary(capturedRoom)
+        var summary = convertRoomToSummary(capturedRoom)
+        
+        // Calculate quality report
+        summary.calculateQuality()
+        
         capturedRooms.append(summary)
         
         statusMessage = "Scan complete! \(capturedRooms.count) room(s) captured."
@@ -125,6 +129,9 @@ class RoomCaptureManager: ObservableObject {
         }
         
         print("✅ Room processed: \(summary.walls.count) walls, \(summary.openings.count) openings")
+        if let report = summary.qualityReport {
+            print("📊 Quality Score: \(report.qualityScore)/100 (\(report.overallQuality.description))")
+        }
     }
     
     /// Handle RoomPlan capture error
@@ -306,6 +313,7 @@ struct CapturedRoomSummary: Identifiable, Codable {
     let floorArea: Float
     let walls: [WallSummary]
     let openings: [OpeningSummary]
+    var qualityReport: ScanQualityReport?
     
     enum CodingKeys: String, CodingKey {
         case roomId, floorArea, walls, openings
@@ -316,6 +324,12 @@ struct CapturedRoomSummary: Identifiable, Codable {
         self.floorArea = floorArea
         self.walls = walls
         self.openings = openings
+        // Quality report will be calculated after initialization
+        self.qualityReport = nil
+    }
+    
+    mutating func calculateQuality() {
+        self.qualityReport = ScanQualityAnalyzer.analyzeScanQuality(room: self)
     }
 }
 
