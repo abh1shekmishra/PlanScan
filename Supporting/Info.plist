@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Camera Usage Description - Required for RoomPlan and ARKit -->
+	<key>NSCameraUsageDescription</key>
+	<string>Camera and LiDAR are used to scan and measure rooms. This enables accurate 3D room capture and measurements.</string>
+	
+	<!-- Location When In Use (Optional - for better AR tracking) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location helps improve AR tracking accuracy for room scanning.</string>
+	
+	<!-- Photo Library Usage (Optional - for saving exports) -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save room scans and measurements to your photo library.</string>
+	
+	<!-- Supports Document Browser -->
+	<key>UISupportsDocumentBrowser</key>
+	<true/>
+	
+	<!-- File Sharing Enabled -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	
+	<!-- Supports iTunes File Sharing -->
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	
+	<!-- Supported Document Types -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Room Scan JSON</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>USDZ 3D Model</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.pixar.universal-scene-description-mobile</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+		</dict>
+	</array>
+	
+	<!-- Exported Type Identifiers -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.roomscanner.scan</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Room Scanner Data</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>roomscan</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	
+	<!-- Required Device Capabilities -->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+		<string>arkit</string>
+	</array>
+	
+	<!-- Supported Interface Orientations -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	
+	<!-- iPad Supported Orientations -->
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	
+	<!-- Status Bar Style -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+	
+	<!-- View Controller Based Status Bar -->
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	
+	<!-- Launch Screen -->
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIImageName</key>
+		<string>LaunchImage</string>
+		<key>UIColorName</key>
+		<string>LaunchColor</string>
+	</dict>
+	
+	<!-- Minimum iOS Version: 16.0 (Required for RoomPlan) -->
+	<!-- Note: Set in Xcode project settings, not in Info.plist -->
+	
+	<!-- Application Scene Manifest -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	
+	<!-- Background Modes (Optional - for continued AR tracking) -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	
+	<!-- App Category -->
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	
+	<!-- Supports Opening Documents -->
+	<key>CFBundleDisplayName</key>
+	<string>RoomScanner</string>
+	
+	<!-- Bundle Identifier -->
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	
+	<!-- Bundle Name -->
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	
+	<!-- Bundle Version -->
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	
+	<!-- Short Version String -->
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	
+	<!-- Bundle Package Type -->
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	
+	<!-- Bundle Executable -->
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	
+	<!-- Bundle Info Dictionary Version -->
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	
+	<!-- IMPORTANT NOTES FOR DEVELOPERS -->
+	<!-- 
+	1. RoomPlan requires iOS 16.0 or later
+	2. LiDAR is required - iPhone 12 Pro or newer
+	3. Physical device required - Simulator does not support LiDAR
+	4. Set deployment target to iOS 16.0 in Xcode project settings
+	5. Enable camera permissions when prompted
+	6. Scene reconstruction requires ARKit scene reconstruction capability
+	-->
+</dict>
+</plist>
