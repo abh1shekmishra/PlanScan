@@ -86,6 +86,26 @@ class RoomCaptureManager: ObservableObject {
         print("✅ Scan stopped")
     }
     
+    /// Reset session for a new scan (used by rescan button)
+    func resetForNewScan() {
+        print("🔄 Resetting for new scan")
+        
+        // Stop any active session
+        captureSession?.stop()
+        
+        // Clear session references and state
+        captureSession = nil
+        sessionIsRunning = false
+        
+        // Clear captured data
+        capturedRooms.removeAll()
+        lastCapturedRoom = nil
+        errorMessage = nil
+        scanProgress = 0.0
+        
+        print("✅ Reset complete, ready for new scan")
+    }
+    
     /// Handle completion of RoomPlan capture
     @available(iOS 16.0, *)
     func handleRoomCaptureComplete(_ capturedRoom: CapturedRoom) {
@@ -98,7 +118,11 @@ class RoomCaptureManager: ObservableObject {
         capturedRooms.append(summary)
         
         statusMessage = "Scan complete! \(capturedRooms.count) room(s) captured."
-        isScanning = false
+        
+        // Delay setting isScanning to false to ensure UI updates properly
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.isScanning = false
+        }
         
         print("✅ Room processed: \(summary.walls.count) walls, \(summary.openings.count) openings")
     }
@@ -107,7 +131,11 @@ class RoomCaptureManager: ObservableObject {
     func handleRoomCaptureError(_ error: Error) {
         print("❌ Capture error: \(error.localizedDescription)")
         errorMessage = error.localizedDescription
-        isScanning = false
+        
+        // Only stop scanning if it's a critical error
+        if error.localizedDescription.lowercased().contains("user cancelled") {
+            isScanning = false
+        }
     }
 
     /// Register the capture session owned by the RoomCaptureView and start it if scanning is active
@@ -281,6 +309,13 @@ struct CapturedRoomSummary: Identifiable, Codable {
     
     enum CodingKeys: String, CodingKey {
         case roomId, floorArea, walls, openings
+    }
+    
+    init(roomId: String, floorArea: Float, walls: [WallSummary], openings: [OpeningSummary]) {
+        self.roomId = roomId
+        self.floorArea = floorArea
+        self.walls = walls
+        self.openings = openings
     }
 }
 

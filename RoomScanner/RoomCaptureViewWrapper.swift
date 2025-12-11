@@ -75,11 +75,10 @@ struct RoomCaptureViewWrapper: UIViewRepresentable {
             print("🎯 shouldPresent called")
             
             if let error = error {
-                print("❌ Error: \(error.localizedDescription)")
-                Task { @MainActor in
-                    manager.handleRoomCaptureError(error)
-                }
-                return false
+                // Only log non-critical errors; don't stop scanning
+                print("⚠️ Warning during scan: \(error.localizedDescription)")
+                // Return true to allow the user to continue scanning
+                return true
             }
             
             return true

@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var isExportingUSDZ = false
     @State private var isExportingJSON = false
     @State private var isExportingFloorPlan = false
+    @State private var showingFloorPlanViewer = false
     
     var body: some View {
         ZStack {
@@ -66,9 +67,179 @@ struct ContentView: View {
                                 .padding()
                                 .background(Color(.systemGray6))
                                 .cornerRadius(10)
+                                
+                                // Door/Window Analysis Section
+                                if !room.openings.isEmpty {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("Door/Window Analysis")
+                                            .font(.headline)
+                                            .padding(.bottom, 4)
+                                        
+                                        let doors = room.openings.filter { $0.type == "door" }
+                                        let windows = room.openings.filter { $0.type == "window" }
+                                        
+                                        HStack {
+                                            Label("Total Openings", systemImage: "square.grid.2x2")
+                                                .font(.subheadline)
+                                                .foregroundColor(.secondary)
+                                            Spacer()
+                                            Text("\(room.openings.count)")
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                        }
+                                        
+                                        if !doors.isEmpty {
+                                            HStack {
+                                                Label("Doors", systemImage: "door.right.hand")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.secondary)
+                                                Spacer()
+                                                Text("\(doors.count)")
+                                                    .font(.subheadline)
+                                                    .fontWeight(.semibold)
+                                            }
+                                            
+                                            let totalDoorArea = doors.reduce(0) { $0 + (Float($1.width) * Float($1.height)) }
+                                            HStack {
+                                                Text("  Door Area")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                Spacer()
+                                                Text(String(format: "%.2f m²", totalDoorArea))
+                                                    .font(.caption)
+                                                    .fontWeight(.semibold)
+                                            }
+                                        }
+                                        
+                                        if !windows.isEmpty {
+                                            HStack {
+                                                Label("Windows", systemImage: "square.split.2x1")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.secondary)
+                                                Spacer()
+                                                Text("\(windows.count)")
+                                                    .font(.subheadline)
+                                                    .fontWeight(.semibold)
+                                            }
+                                            
+                                            let totalWindowArea = windows.reduce(0) { $0 + (Float($1.width) * Float($1.height)) }
+                                            HStack {
+                                                Text("  Window Area")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                Spacer()
+                                                Text(String(format: "%.2f m²", totalWindowArea))
+                                                    .font(.caption)
+                                                    .fontWeight(.semibold)
+                                            }
+                                        }
+                                        
+                                        let totalOpeningArea = room.openings.reduce(0) { $0 + (Float($1.width) * Float($1.height)) }
+                                        Divider()
+                                        HStack {
+                                            Text("Total Opening Area")
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                            Spacer()
+                                            Text(String(format: "%.2f m²", totalOpeningArea))
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.blue)
+                                        }
+                                    }
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(10)
+                                }
+                                
+                                // Wall Details Section
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Wall Details")
+                                        .font(.headline)
+                                        .padding(.bottom, 4)
+                                    
+                                    ForEach(Array(room.walls.enumerated()), id: \.element.id) { index, wall in
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            HStack {
+                                                Text("Wall \(index + 1)")
+                                                    .font(.subheadline)
+                                                    .fontWeight(.semibold)
+                                                Spacer()
+                                                Text(wall.id)
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            
+                                            Divider()
+                                            
+                                            HStack {
+                                                Label("Height", systemImage: "arrow.up.and.down")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                Spacer()
+                                                Text(String(format: "%.2f m", wall.height))
+                                                    .font(.caption)
+                                            }
+                                            
+                                            if let length = wall.length {
+                                                HStack {
+                                                    Label("Length", systemImage: "ruler")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                    Spacer()
+                                                    Text(String(format: "%.2f m", length))
+                                                        .font(.caption)
+                                                }
+                                            }
+                                            
+                                            if let thickness = wall.thickness {
+                                                HStack {
+                                                    Label("Thickness", systemImage: "arrow.left.and.right")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                    Spacer()
+                                                    Text(String(format: "%.2f m", thickness))
+                                                        .font(.caption)
+                                                }
+                                            }
+                                            
+                                            HStack {
+                                                Label("Position", systemImage: "location")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                Spacer()
+                                                Text(String(format: "(%.2f, %.2f, %.2f)", wall.position.x, wall.position.y, wall.position.z))
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                        .padding()
+                                        .background(Color(.systemBackground))
+                                        .cornerRadius(8)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(Color(.systemGray4), lineWidth: 1)
+                                        )
+                                    }
+                                }
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(10)
                             }
                             
                             VStack(spacing: 12) {
+                                Button(action: { showingFloorPlanViewer = true }) {
+                                    HStack {
+                                        Image(systemName: "map")
+                                        Text("View Floor Plan")
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.indigo)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(10)
+                                }
+                                
                                 Button(action: exportJSON) {
                                     HStack {
                                         Image(systemName: "doc.text")
@@ -147,6 +318,11 @@ struct ContentView: View {
             .sheet(isPresented: $showingShareSheet) {
                 if let url = exportedURL {
                     ShareSheet(items: [url])
+                }
+            }
+            .sheet(isPresented: $showingFloorPlanViewer) {
+                if let room = manager.capturedRooms.last {
+                    FloorPlanViewer(room: room)
                 }
             }
             
@@ -235,8 +411,10 @@ struct ContentView: View {
     
     private func resetScan() {
         print("🔄 Starting new scan...")
-        manager.capturedRooms.removeAll()
-        manager.startScan()
+        manager.resetForNewScan()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            manager.startScan()
+        }
     }
 }
 
@@ -450,6 +628,71 @@ struct RoomCard: View {
         .background(Color(.systemGray6))
         .cornerRadius(12)
         .padding(.horizontal)
+    }
+}
+
+// MARK: - Floor Plan Viewer
+@available(iOS 16.0, *)
+struct FloorPlanViewer: View {
+    let room: CapturedRoomSummary
+    @Environment(\.dismiss) var dismiss
+    @State private var floorPlanImage: UIImage?
+    @State private var isGenerating = false
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color(.systemBackground).ignoresSafeArea()
+                
+                if isGenerating {
+                    ProgressView("Generating floor plan...")
+                } else if let image = floorPlanImage {
+                    ScrollView([.horizontal, .vertical]) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .padding()
+                    }
+                } else {
+                    VStack(spacing: 16) {
+                        Image(systemName: "map.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.gray)
+                        Text("Unable to generate floor plan")
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Floor Plan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+                
+                if floorPlanImage != nil {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        ShareLink(item: Image(uiImage: floorPlanImage!), preview: SharePreview("Floor Plan", image: Image(uiImage: floorPlanImage!)))
+                    }
+                }
+            }
+        }
+        .onAppear {
+            generateFloorPlan()
+        }
+    }
+    
+    private func generateFloorPlan() {
+        isGenerating = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let image = FloorPlanGenerator.generateFloorPlan(from: room)
+            DispatchQueue.main.async {
+                floorPlanImage = image
+                isGenerating = false
+            }
+        }
     }
 }
 
