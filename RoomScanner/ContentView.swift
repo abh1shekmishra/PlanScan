@@ -11,6 +11,10 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var manager: RoomCaptureManager
     @State private var showingResults = false
+    @State private var showingShareSheet = false
+    @State private var exportedURL: URL?
+    @State private var isExportingUSDZ = false
+    @State private var isExportingJSON = false
     
     var body: some View {
         ZStack {
@@ -67,13 +71,35 @@ struct ContentView: View {
                                 Button(action: exportJSON) {
                                     HStack {
                                         Image(systemName: "doc.text")
-                                        Text("Export JSON")
+                                        if isExportingJSON {
+                                            ProgressView()
+                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        }
+                                        Text(isExportingJSON ? "Exporting..." : "Export JSON")
                                     }
                                     .frame(maxWidth: .infinity)
                                     .padding()
                                     .background(Color.blue)
                                     .foregroundColor(.white)
                                     .cornerRadius(10)
+                                    .disabled(isExportingJSON || isExportingUSDZ)
+                                }
+
+                                Button(action: exportUSDZ) {
+                                    HStack {
+                                        Image(systemName: "cube")
+                                        if isExportingUSDZ {
+                                            ProgressView()
+                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        }
+                                        Text(isExportingUSDZ ? "Exporting..." : "Export USDZ")
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.orange)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(10)
+                                    .disabled(isExportingUSDZ)
                                 }
                                 
                                 Button(action: resetScan) {
@@ -100,6 +126,11 @@ struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .sheet(isPresented: $showingShareSheet) {
+                if let url = exportedURL {
+                    ShareSheet(items: [url])
+                }
+            }
             
             // Error overlay
             if let error = manager.errorMessage {
@@ -131,12 +162,37 @@ struct ContentView: View {
     
     private func exportJSON() {
         print("📝 Exporting JSON...")
-        do {
-            let url = try ModelExporter.exportJSON(rooms: manager.capturedRooms)
-            print("✅ JSON exported to: \(url.path)")
-        } catch {
-            print("❌ JSON export failed: \(error)")
-            manager.errorMessage = "Export failed: \(error.localizedDescription)"
+        Task {
+            await MainActor.run { isExportingJSON = true }
+            do {
+                let url = try ModelExporter.exportJSON(rooms: manager.capturedRooms)
+                print("✅ JSON exported to: \(url.path)")
+                await MainActor.run {
+                    exportedURL = url
+                    showingShareSheet = true
+                    isExportingJSON = false
+                }
+            } catch {
+                print("❌ JSON export failed: \(error)")
+                await MainActor.run {
+                    manager.errorMessage = "Export failed: \(error.localizedDescription)"
+                    isExportingJSON = false
+                }
+            }
+        }
+    }
+
+    private func exportUSDZ() {
+        Task {
+            await MainActor.run { isExportingUSDZ = true }
+            print("🧊 Exporting USDZ...")
+            guard let url = await manager.exportToUSDZ() else { return }
+            print("✅ USDZ exported to: \(url.path)")
+            await MainActor.run {
+                exportedURL = url
+                showingShareSheet = true
+                isExportingUSDZ = false
+            }
         }
     }
     
@@ -171,6 +227,9 @@ struct WelcomeView: View {
             VStack(alignment: .leading, spacing: 10) {
                 FeatureRow(icon: "ruler", text: "Measure wall heights")
                 FeatureRow(icon: "square.grid.3x3", text: "Compute floor area")
+                FeatureRow(icon: "doc.text", text: "Export JSON (Save to Files)")
+                FeatureRow(icon: "cube", text: "Export USDZ 3D model")
+                FeatureRow(icon: "square.grid.2x2", text: "Export 2D floor plan")
             }
             .padding()
             .background(Color(.systemGray6))
@@ -295,11 +354,60 @@ struct RoomCard: View {
                 Text(String(format: "%.2f m²", room.floorArea))
                     .fontWeight(.semibold)
             }
-            
-            Text("Walls (\(room.walls.count))")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .padding(.top, 8)
+
+            HStack {
+                Text("Walls")
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("\(room.walls.count)")
+                    .fontWeight(.semibold)
+            }
+
+            HStack {
+                Text("Openings (doors/windows)")
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("\(room.openings.count)")
+                    .fontWeight(.semibold)
+            }
+
+            if !room.walls.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Wall Details")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    ForEach(room.walls.prefix(4)) { wall in
+                        Text("• \(wall.id): h=\(String(format: "%.2f", wall.height))m, len=\(String(format: "%.2f", wall.length ?? 0))m")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    if room.walls.count > 4 {
+                        Text("…plus \(room.walls.count - 4) more wall(s)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.top, 6)
+            }
+
+            if !room.openings.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Openings")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    ForEach(room.openings.prefix(4)) { opening in
+                        Text("• \(opening.type) \(opening.id): w=\(String(format: "%.2f", opening.width))m, h=\(String(format: "%.2f", opening.height))m")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    if room.openings.count > 4 {
+                        Text("…plus \(room.openings.count - 4) more opening(s)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.top, 6)
+            }
         }
         .padding()
         .background(Color(.systemGray6))
