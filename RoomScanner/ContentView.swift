@@ -17,6 +17,10 @@ struct ContentView: View {
     @State private var isExportingJSON = false
     @State private var isExportingFloorPlan = false
     @State private var showingFloorPlanViewer = false
+    @State private var showingImagePicker = false
+    @State private var selectedImage: UIImage?
+    @State private var isProcessingImage = false
+    @State private var imageProcessingError: String?
     
     var body: some View {
         ZStack {
@@ -313,10 +317,16 @@ struct ContentView: View {
                         .padding()
                     }
                 } else {
-                    WelcomeView(onStartScan: {
-                        print("🚀 Start scan button tapped")
-                        manager.startScan()
-                    })
+                    WelcomeView(
+                        onStartScan: {
+                            print("🚀 Start scan button tapped")
+                            manager.startScan()
+                        },
+                        onImagePicker: {
+                            print("📸 Image picker button tapped")
+                            showingImagePicker = true
+                        }
+                    )
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -329,6 +339,14 @@ struct ContentView: View {
                 if let room = manager.capturedRooms.last {
                     FloorPlanViewer(room: room)
                 }
+            }
+            .sheet(isPresented: $showingImagePicker) {
+                ImagePickerView(selectedImage: $selectedImage, sourceType: .photoLibrary)
+                    .onDisappear {
+                        if let image = selectedImage {
+                            processImageTo3D(image)
+                        }
+                    }
             }
             
             // Error overlay
@@ -436,11 +454,45 @@ struct ContentView: View {
             manager.startScan()
         }
     }
+    
+    private func processImageTo3D(_ image: UIImage) {
+        print("🖼️ Processing image to 3D model...")
+        isProcessingImage = true
+        imageProcessingError = nil
+        
+        Task {
+            // Analyze image using Vision framework
+            guard let roomData = ImageTo3DProcessor.analyzeRoomImage(image) else {
+                await MainActor.run {
+                    imageProcessingError = "Failed to detect room boundaries in image"
+                    isProcessingImage = false
+                }
+                return
+            }
+            
+            print("✅ Room analysis complete: \(roomData.estimatedWidth)m × \(roomData.estimatedLength)m × \(roomData.estimatedHeight)m")
+            
+            // Generate 3D model from image analysis
+            let room3D = ImageTo3DProcessor.generate3DModel(from: roomData)
+            
+            // Add to captured rooms (background thread)
+            await MainActor.run {
+                manager.capturedRooms.append(room3D)
+                isProcessingImage = false
+                selectedImage = nil
+                
+                print("✅ 3D model generated successfully!")
+                print("Room dimensions: \(roomData.estimatedWidth)m W × \(roomData.estimatedLength)m L × \(roomData.estimatedHeight)m H")
+                print("Floor area: \(String(format: "%.2f", room3D.floorArea)) m²")
+            }
+        }
+    }
 }
 
 // MARK: - Welcome View
 struct WelcomeView: View {
     let onStartScan: () -> Void
+    let onImagePicker: () -> Void
     
     var body: some View {
         VStack(spacing: 30) {
@@ -480,6 +532,24 @@ struct WelcomeView: View {
                 .frame(maxWidth: .infinity)
                 .padding(16)
                 .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+                .font(.headline)
+            }
+            .padding(.horizontal, 40)
+            
+            Divider()
+                .padding(.horizontal)
+            
+            Button(action: onImagePicker) {
+                HStack(spacing: 10) {
+                    Image(systemName: "photo.circle")
+                    Text("Generate from Photo")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(16)
+                .background(Color.purple)
                 .foregroundColor(.white)
                 .cornerRadius(12)
                 .font(.headline)

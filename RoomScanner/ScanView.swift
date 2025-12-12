@@ -123,12 +123,17 @@ struct ScanView: View {
     
     private func startTimer() {
         // Reduce timer frequency for better performance
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+        // Note: Timer will be invalidated in onDisappear, so self is safe
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [self] _ in
             scanDuration += 1.0
 
             // Periodic voice guidance check (every 30 seconds)
             if Int(scanDuration) % 30 == 0 {
-                manager.voiceGuidance.checkScanDuration()
+                Task {
+                    await MainActor.run {
+                        self.manager.voiceGuidance.checkScanDuration()
+                    }
+                }
             }
         }
     }
