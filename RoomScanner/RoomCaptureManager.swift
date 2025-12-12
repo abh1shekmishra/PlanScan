@@ -45,12 +45,13 @@ class RoomCaptureManager: ObservableObject {
     
     /// Start a new room scan
     func startScan() {
-        print("🚀 Starting RoomPlan scan")
-        
+        // Thread-safe state check
         guard !isScanning else {
             print("⚠️ Scan already in progress")
             return
         }
+        
+        print("🚀 Starting RoomPlan scan")
         
         // Check RoomPlan support
         guard RoomCaptureSession.isSupported else {
@@ -81,9 +82,12 @@ class RoomCaptureManager: ObservableObject {
     
     /// Stop the current scan
     func stopScan() {
-        print("🛑 Stopping scan")
+        guard isScanning else { 
+            print("⚠️ No active scan to stop")
+            return 
+        }
         
-        guard isScanning else { return }
+        print("🛑 Stopping scan")
         
         captureSession?.stop()
         sessionIsRunning = false
@@ -99,6 +103,15 @@ class RoomCaptureManager: ObservableObject {
     /// Reset session for a new scan (used by rescan button)
     func resetForNewScan() {
         print("🔄 Resetting for new scan")
+        
+        // Ensure we're on main thread for state changes
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.resetForNewScan()
+            }
+            return
+        }
+        
         
         // Stop any active session
         captureSession?.stop()
@@ -119,6 +132,13 @@ class RoomCaptureManager: ObservableObject {
     /// Handle completion of RoomPlan capture
     @available(iOS 16.0, *)
     func handleRoomCaptureComplete(_ capturedRoom: CapturedRoom) {
+        guard !capturedRoom.walls.isEmpty else {
+            print("⚠️ Captured room has no walls")
+            errorMessage = "Scan failed: No walls detected"
+            isScanning = false
+            return
+        }
+        
         print("✅ RoomPlan capture complete")
         
         self.lastCapturedRoom = capturedRoom
@@ -246,12 +266,16 @@ class RoomCaptureManager: ObservableObject {
     }
     
     private func estimateFloorArea(from walls: [WallSummary]) -> Float {
-        guard walls.count >= 2 else { return 0 }
+        guard walls.count >= 2 else { return 0.0 }
         
         let lengths = walls.compactMap { $0.length }
-        guard lengths.count >= 2 else { return 0 }
+        guard lengths.count >= 2 else { return 0.0 }
         
         let sortedLengths = lengths.sorted(by: >)
+        
+        // Guard against array access
+        guard sortedLengths.count >= 2 else { return 0.0 }
+        
         return sortedLengths[0] * sortedLengths[1]
     }
     

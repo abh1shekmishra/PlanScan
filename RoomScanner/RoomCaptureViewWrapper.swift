@@ -50,6 +50,9 @@ struct RoomCaptureViewWrapper: UIViewRepresentable {
     class Coordinator: NSObject, RoomCaptureViewDelegate, RoomCaptureSessionDelegate {
         let manager: RoomCaptureManager
         private var lastCapturedRoom: CapturedRoom?
+        private var lastUpdateTime: Date?
+        private var lastAnnouncedWallCount: Int = 0
+        private let updateThrottle: TimeInterval = 2.0 // Throttle updates to every 2 seconds
         
         init(manager: RoomCaptureManager) {
             self.manager = manager
@@ -86,17 +89,29 @@ struct RoomCaptureViewWrapper: UIViewRepresentable {
 
         func captureSession(_ session: RoomCaptureSession, didUpdate room: CapturedRoom) {
             // Keep a reference to the latest room so we can use it on completion
-            
-                        // Provide real-time voice guidance
-                        Task { @MainActor in
-                            let wallCount = room.walls.count
-                            manager.voiceGuidance.announceWallDetection(wallNumber: wallCount)
-                
-                            // Estimate coverage based on wall count (rough heuristic)
-                            let estimatedCoverage = min(100, wallCount * 20)
-                            manager.voiceGuidance.updateCoverage(percentage: estimatedCoverage)
-                        }
             lastCapturedRoom = room
+            
+            // Throttle updates to reduce performance impact
+            let now = Date()
+            if let lastTime = lastUpdateTime, now.timeIntervalSince(lastTime) < updateThrottle {
+                return
+            }
+            lastUpdateTime = now
+            
+            // Provide real-time voice guidance (throttled)
+            Task { @MainActor in
+                let wallCount = room.walls.count
+                
+                // Only announce if wall count changed significantly
+                if wallCount != self.lastAnnouncedWallCount && wallCount > 0 {
+                    self.manager.voiceGuidance.announceWallDetection(wallNumber: wallCount)
+                    self.lastAnnouncedWallCount = wallCount
+                }
+                
+                // Estimate coverage based on wall count (rough heuristic)
+                let estimatedCoverage = min(100, wallCount * 20)
+                self.manager.voiceGuidance.updateCoverage(percentage: estimatedCoverage)
+            }
         }
 
         func captureSession(_ session: RoomCaptureSession, didEndWith data: CapturedRoomData, error: Error?) {

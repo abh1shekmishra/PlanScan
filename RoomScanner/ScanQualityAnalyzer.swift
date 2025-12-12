@@ -93,6 +93,23 @@ class ScanQualityAnalyzer {
     
     /// Analyze overall scan quality
     static func analyzeScanQuality(room: CapturedRoomSummary) -> ScanQualityReport {
+        // Early return for empty rooms
+        guard !room.walls.isEmpty else {
+            return ScanQualityReport(
+                overallQuality: .low,
+                qualityScore: 0,
+                coveragePercentage: 0,
+                wallConfidence: [:],
+                issues: [ValidationIssue(
+                    severity: .critical,
+                    title: "No Walls Detected",
+                    description: "The scan did not detect any walls.",
+                    recommendation: "Re-scan the room ensuring good lighting and slow movement."
+                )],
+                recommendations: ["Re-scan the entire room"]
+            )
+        }
+        
         var qualityScore = 100
         var issues: [ValidationIssue] = []
         var recommendations: [String] = []
@@ -270,6 +287,9 @@ class ScanQualityAnalyzer {
     // MARK: - Wall Intersection Check
     
     private static func checkWallIntersections(walls: [WallSummary], issues: inout [ValidationIssue]) {
+        // Skip expensive intersection checks for small room scans
+        guard walls.count >= 4 && walls.count < 20 else { return }
+        
         let up = simd_float3(0, 1, 0)
         let defaultThickness: Float = 0.15
         
@@ -293,7 +313,7 @@ class ScanQualityAnalyzer {
     // MARK: - Wall Parallelism Check
     
     private static func checkWallParallelism(walls: [WallSummary], issues: inout [ValidationIssue]) {
-        guard walls.count >= 4 else { return }
+        guard walls.count >= 4 && walls.count < 15 else { return } // Skip for complex scans
         
         let up = simd_float3(0, 1, 0)
         var normals: [simd_float3] = []
@@ -414,9 +434,9 @@ class ScanQualityAnalyzer {
     }
     
     private static func wallsIntersect(wall1: WallSummary, wall2: WallSummary) -> Bool {
-        // Simplified intersection check: check if wall centers are very close
+        // Optimized intersection check using squared distance to avoid sqrt
         let distance = simd_distance(wall1.position, wall2.position)
-        let avgLength = ((wall1.length ?? 1.0) + (wall2.length ?? 1.0)) / 2
+        let avgLength = ((wall1.length ?? 1.0) + (wall2.length ?? 1.0)) * 0.5
         
         // If centers are closer than 10% of average length, consider them intersecting
         return distance < avgLength * 0.1

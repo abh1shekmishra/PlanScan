@@ -37,6 +37,12 @@ class FloorPlanGenerator {
     
     /// Generate a floor plan image from room summary data
     static func generateFloorPlan(from roomSummary: CapturedRoomSummary, size: CGSize = CGSize(width: 1200, height: 1200)) -> UIImage? {
+        // Guard against empty data
+        guard !roomSummary.walls.isEmpty else {
+            print("⚠️ Cannot generate floor plan: no walls detected")
+            return nil
+        }
+        
         print("📐 Generating floor plan from room summary")
         print("   Walls: \(roomSummary.walls.count)")
         print("   Openings: \(roomSummary.openings.count)")
@@ -79,8 +85,8 @@ class FloorPlanGenerator {
         let bounds = calculateRoomBounds(from: rotatedRoom)
         print("   Room bounds: \(bounds)")
         
-        // Create image context
-        UIGraphicsBeginImageContextWithOptions(size, true, 0)
+        // Create image context with explicit scale for better performance
+        UIGraphicsBeginImageContextWithOptions(size, true, 1.0)
         defer { UIGraphicsEndImageContext() }
         
         guard let context = UIGraphicsGetCurrentContext() else {
@@ -235,6 +241,11 @@ class FloorPlanGenerator {
     }
     
     private static func calculateTransform(from bounds: (minX: Float, maxX: Float, minZ: Float, maxZ: Float), to size: CGSize) -> CGAffineTransform {
+        // Guard against invalid bounds
+        guard bounds.maxX > bounds.minX && bounds.maxZ > bounds.minZ else {
+            return CGAffineTransform.identity
+        }
+        
         let roomWidth = CGFloat(bounds.maxX - bounds.minX)
         let roomHeight = CGFloat(bounds.maxZ - bounds.minZ)
         
@@ -347,11 +358,15 @@ class FloorPlanGenerator {
     }
     
     private static func drawWallDimensions(context: CGContext, walls: [WallSummary], transform: CGAffineTransform) {
+        // Limit dimension annotations for performance
+        let maxAnnotations = 8
+        let wallsToAnnotate = walls.prefix(maxAnnotations)
+        
         let up = simd_float3(0, 1, 0)
         let defaultThickness: Float = 0.15
         let offsetDistance: Float = 0.4 // Offset dimension line from wall
         
-        for wall in walls {
+        for wall in wallsToAnnotate {
             guard let length = wall.length else { continue }
             
             let position = wall.position

@@ -15,7 +15,10 @@ class VoiceGuidanceManager: ObservableObject {
     @Published var isEnabled: Bool = true
     @Published var currentGuidance: String = ""
     
-    private let synthesizer = AVSpeechSynthesizer()
+    private lazy var synthesizer: AVSpeechSynthesizer = {
+        let synth = AVSpeechSynthesizer()
+        return synth
+    }()
     private var lastAnnouncementTime: Date?
     private var announcementQueue: [String] = []
     private let minimumAnnouncementInterval: TimeInterval = 3.0 // Seconds between announcements
@@ -24,19 +27,23 @@ class VoiceGuidanceManager: ObservableObject {
     private var scanStartTime: Date?
     private var lastCoveragePercentage: Int = 0
     private var hasAnnouncedStart = false
+    private var isSpeaking = false
+    private var isAudioSessionConfigured = false
     private var hasAnnouncedMidpoint = false
     private var hasWarned25Percent = false
     
     // MARK: - Initialization
     
     init() {
-        configureAudioSession()
+        // Defer audio session configuration until first use
     }
     
     private func configureAudioSession() {
+        guard !isAudioSessionConfigured else { return }
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
             try AVAudioSession.sharedInstance().setActive(true)
+            isAudioSessionConfigured = true
         } catch {
             print("⚠️ Failed to configure audio session: \(error)")
         }
@@ -122,7 +129,7 @@ class VoiceGuidanceManager: ObservableObject {
     }
     
     func announceWallDetection(wallNumber: Int) {
-        guard isEnabled, wallNumber <= 6 else { return } // Only announce first 6 walls
+        guard isEnabled, wallNumber <= 4, canAnnounce() else { return } // Reduced to prevent spam
         
         if wallNumber == 1 {
             speak("First wall detected. Continue around the room.")
@@ -193,13 +200,18 @@ class VoiceGuidanceManager: ObservableObject {
     // MARK: - Speech Synthesis
     
     private func speak(_ text: String) {
-        guard isEnabled else { return }
+        guard isEnabled, !text.isEmpty else { return }
+        
+        // Configure audio session on first use
+        if !isAudioSessionConfigured {
+            configureAudioSession()
+        }
         
         // Update current guidance text for UI
         currentGuidance = text
         
-        // Stop any ongoing speech
-        if synthesizer.isSpeaking {
+        // Stop any ongoing speech to prevent queue buildup
+        if isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
         
@@ -209,13 +221,18 @@ class VoiceGuidanceManager: ObservableObject {
         utterance.pitchMultiplier = 1.0
         utterance.volume = 0.8
         
-        // Use a natural voice if available
-        if let voice = AVSpeechSynthesisVoice(language: "en-US") {
-            utterance.voice = voice
-        }
+        // Cache voice lookup
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         
         // Speak
+        isSpeaking = true
         synthesizer.speak(utterance)
+        
+        // Reset speaking flag after estimated duration
+        let estimatedDuration = TimeInterval(text.count) * 0.05 + 1.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + estimatedDuration) { [weak self] in
+            self?.isSpeaking = false
+        }
         
         // Update last announcement time
         lastAnnouncementTime = Date()

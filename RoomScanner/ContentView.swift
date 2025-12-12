@@ -360,6 +360,11 @@ struct ContentView: View {
     }
     
     private func exportJSON() {
+        guard !isExportingJSON, !isExportingUSDZ, !isExportingFloorPlan else { 
+            print("⚠️ Export already in progress")
+            return 
+        }
+        
         print("📝 Exporting JSON...")
         Task {
             await MainActor.run { isExportingJSON = true }
@@ -382,6 +387,11 @@ struct ContentView: View {
     }
 
     private func exportUSDZ() {
+        guard !isExportingUSDZ, !isExportingJSON, !isExportingFloorPlan else { 
+            print("⚠️ Export already in progress")
+            return 
+        }
+        
         Task {
             await MainActor.run { isExportingUSDZ = true }
             print("🧊 Exporting USDZ...")
@@ -396,6 +406,11 @@ struct ContentView: View {
     }
 
     private func exportFloorPlan() {
+        guard !isExportingFloorPlan, !isExportingJSON, !isExportingUSDZ else { 
+            print("⚠️ Export already in progress")
+            return 
+        }
+        
         print("📐 Exporting floor plan...")
         Task {
             await MainActor.run { isExportingFloorPlan = true }
@@ -690,12 +705,19 @@ struct FloorPlanViewer: View {
     }
     
     private func generateFloorPlan() {
+        guard !isGenerating else { return }
+        
         isGenerating = true
-        DispatchQueue.global(qos: .userInitiated).async {
+        
+        // Use background queue for expensive operation
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
             let image = FloorPlanGenerator.generateFloorPlan(from: room)
+            
             DispatchQueue.main.async {
-                floorPlanImage = image
-                isGenerating = false
+                self.floorPlanImage = image
+                self.isGenerating = false
             }
         }
     }

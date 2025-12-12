@@ -17,6 +17,10 @@ struct ModelExporter {
     
     /// Export captured rooms to JSON format
     static func exportJSON(rooms: [CapturedRoomSummary]) throws -> URL {
+        guard !rooms.isEmpty else {
+            throw ExportError.saveFailed
+        }
+        
         print("💾 Exporting \(rooms.count) room(s) to JSON")
         
         // Create export data structure
@@ -53,6 +57,12 @@ struct ModelExporter {
     /// Export a 2D floor plan image (PNG or JPEG) for a captured room summary
     @available(iOS 16.0, *)
     static func exportFloorPlan(room: CapturedRoomSummary, format: FloorPlanFormat = .png) throws -> URL {
+        // Guard against empty room data
+        guard !room.walls.isEmpty else {
+            print("❌ Cannot export floor plan: room has no walls")
+            throw ExportError.generationFailed
+        }
+        
         guard let image = FloorPlanGenerator.generateFloorPlan(from: room) else {
             throw ExportError.generationFailed
         }
@@ -86,9 +96,16 @@ struct ModelExporter {
     }
     
     static func listExportedFiles() throws -> [URL] {
+        // Add error handling for file system access
         let fileManager = FileManager.default
         let docsURL = getDocumentsDirectory()
-        return try fileManager.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: nil)
+        
+        do {
+            return try fileManager.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: nil)
+        } catch {
+            print("❌ Failed to list exported files: \(error)")
+            return []
+        }
     }
     
     static func deleteExportedFile(at url: URL) throws {
