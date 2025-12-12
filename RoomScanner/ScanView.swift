@@ -9,15 +9,18 @@ struct ScanView: View {
     @State private var timer: Timer?
     
     var body: some View {
-        ZStack {
-            // RoomCaptureView
+        ZStack(alignment: .topLeading) {
+            // RoomCaptureView (full screen behind everything)
             if #available(iOS 16.0, *) {
                 RoomCaptureViewWrapper()
-                    .edgesIgnoringSafeArea(.all)
+                    .ignoresSafeArea()
             }
             
-            // Overlay UI
-            VStack {
+            // Top Status Bar with safe area padding
+            VStack(alignment: .leading, spacing: 0) {
+                Spacer()
+                    .frame(height: 0)
+                
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Scanning Room")
@@ -38,55 +41,69 @@ struct ScanView: View {
                     }
                 }
                 .padding()
-                .background(Color.black.opacity(0.6))
-                
-                Spacer()
-                
-                VStack(spacing: 12) {
-                                        // Voice guidance indicator
-                                        if !manager.voiceGuidance.currentGuidance.isEmpty {
-                                            HStack {
-                                                Image(systemName: manager.voiceGuidance.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
-                                                    .foregroundColor(.white)
-                                                Text(manager.voiceGuidance.currentGuidance)
-                                                    .font(.caption)
-                                                    .foregroundColor(.white)
-                                            }
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(Color.blue.opacity(0.8))
-                                            .cornerRadius(8)
-                                        }
-                    
-                                        // Voice guidance toggle
-                                        Button(action: { manager.voiceGuidance.toggleVoiceGuidance() }) {
-                                            HStack {
-                                                Image(systemName: manager.voiceGuidance.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
-                                                Text(manager.voiceGuidance.isEnabled ? "Voice On" : "Voice Off")
-                                                    .fontWeight(.medium)
-                                            }
-                                            .frame(maxWidth: .infinity)
-                                            .padding()
-                                            .background(manager.voiceGuidance.isEnabled ? Color.blue : Color.gray)
-                                            .foregroundColor(.white)
-                                            .cornerRadius(10)
-                                        }
-                    
-                    Button(action: { showStopConfirm = true }) {
-                        HStack {
-                            Image(systemName: "stop.circle.fill")
-                            Text("Stop Scan")
-                                .fontWeight(.semibold)
+                .background(Color.black.opacity(0.8))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: 0)
+            }
+            
+            // Voice Guidance Floating Indicator (top-right, above buttons)
+            VStack(alignment: .trailing, spacing: 0) {
+                HStack {
+                    Spacer()
+                    if !manager.voiceGuidance.currentGuidance.isEmpty {
+                        HStack(spacing: 8) {
+                            Image(systemName: manager.voiceGuidance.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                                .foregroundColor(.white)
+                                .font(.system(size: 12))
+                            Text(manager.voiceGuidance.currentGuidance)
+                                .font(.caption2)
+                                .foregroundColor(.white)
+                                .lineLimit(2)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.red)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.85))
+                        .cornerRadius(6)
+                        .padding(.top, 50)
+                        .padding(.trailing, 12)
                     }
                 }
-                .padding()
+                Spacer()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            
+            // Bottom Control Buttons - positioned above safe area
+            VStack(alignment: .leading, spacing: 12) {
+                // Voice toggle circular button (left side, small)
+                Button(action: { manager.voiceGuidance.toggleVoiceGuidance() }) {
+                    Image(systemName: manager.voiceGuidance.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.white)
+                        .frame(width: 50, height: 50)
+                        .background(manager.voiceGuidance.isEnabled ? Color.blue : Color.gray)
+                        .clipShape(Circle())
+                }
+                
+                // Stop scan button
+                Button(action: { showStopConfirm = true }) {
+                    HStack {
+                        Image(systemName: "stop.circle.fill")
+                        Text("Stop Scan")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+                    .background(Color.red)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .font(.subheadline)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .alert("Stop Scanning?", isPresented: $showStopConfirm) {
             Button("Continue", role: .cancel) { }
@@ -106,13 +123,12 @@ struct ScanView: View {
     
     private func startTimer() {
         // Reduce timer frequency for better performance
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            self.scanDuration += 1.0
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            scanDuration += 1.0
 
             // Periodic voice guidance check (every 30 seconds)
-            if Int(self.scanDuration) % 30 == 0 {
-                self.manager.voiceGuidance.checkScanDuration()
+            if Int(scanDuration) % 30 == 0 {
+                manager.voiceGuidance.checkScanDuration()
             }
         }
     }

@@ -706,18 +706,16 @@ struct FloorPlanViewer: View {
     
     private func generateFloorPlan() {
         guard !isGenerating else { return }
-        
+
         isGenerating = true
-        
+
         // Use background queue for expensive operation
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            
+        DispatchQueue.global(qos: .userInitiated).async {
             let image = FloorPlanGenerator.generateFloorPlan(from: room)
-            
+
             DispatchQueue.main.async {
-                self.floorPlanImage = image
-                self.isGenerating = false
+                floorPlanImage = image
+                isGenerating = false
             }
         }
     }

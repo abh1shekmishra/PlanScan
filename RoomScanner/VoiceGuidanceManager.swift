@@ -6,7 +6,7 @@
  */
 
 import Foundation
-import AVFoundation
+import AVFoundation 
 import Combine
 
 /// Manages voice guidance and feedback during scanning
