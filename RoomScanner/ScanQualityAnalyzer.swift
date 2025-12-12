@@ -13,7 +13,7 @@ enum ScanQuality {
     case high
     case medium
     case low
-    
+     
     var description: String {
         switch self {
         case .high: return "High"

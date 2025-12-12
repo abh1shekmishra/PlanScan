@@ -107,6 +107,11 @@ struct ScanView: View {
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             scanDuration += 0.1
+
+            // Periodic voice guidance check (every 30 seconds)
+            if scanDuration.truncatingRemainder(dividingBy: 30) < 0.2 {
+                manager.voiceGuidance.checkScanDuration()
+            }
         }
     }
     
@@ -119,17 +124,5 @@ struct ScanView: View {
         let minutes = Int(seconds) / 60
         let secs = Int(seconds) % 60
         return String(format: "%d:%02d", minutes, secs)
-    }
-}
-            
-            // Periodic voice guidance check (every 30 seconds)
-            if scanDuration.truncatingRemainder(dividingBy: 30) < 0.2 {
-                manager.voiceGuidance.checkScanDuration()
-            }
-
-#Preview {
-    if #available(iOS 16.0, *) {
-        ScanView()
-            .environmentObject(RoomCaptureManager())
     }
 }

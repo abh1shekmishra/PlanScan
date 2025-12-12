@@ -4,7 +4,7 @@
 
 The RoomScanner app now includes a complete **Floor Plan Export** feature that generates 2D top-down floor plans with scale markings and dimension annotations.
 
-## 📦 What Was Added
+## 📦 What Was Added 
 
 ### New Files
 1. **`FloorPlanGenerator.swift`** (318 lines)

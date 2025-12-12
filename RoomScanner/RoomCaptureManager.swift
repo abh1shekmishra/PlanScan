@@ -142,6 +142,9 @@ class RoomCaptureManager: ObservableObject {
         if let report = summary.qualityReport {
             print("📊 Quality Score: \(report.qualityScore)/100 (\(report.overallQuality.description))")
         }
+
+        // Announce completion with voice
+        voiceGuidance.scanCompleted(wallCount: summary.walls.count, openingCount: summary.openings.count)
     }
     
     /// Handle RoomPlan capture error
@@ -314,9 +317,6 @@ class RoomCaptureManager: ObservableObject {
         }
     }
 }
-        
-    // Announce completion with voice
-    voiceGuidance.scanCompleted(wallCount: summary.walls.count, openingCount: summary.openings.count)
 
 // MARK: - Data Models
 

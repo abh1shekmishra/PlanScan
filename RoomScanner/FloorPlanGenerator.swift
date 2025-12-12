@@ -324,7 +324,6 @@ class FloorPlanGenerator {
     private static func drawOpenings(context: CGContext, openings: [OpeningSummary], transform: CGAffineTransform) {
         for opening in openings {
             let position = opening.position
-            let width = opening.width
             
             // Draw opening as a simple marker dot instead of a line
             // Since we don't have reliable normal data for openings
