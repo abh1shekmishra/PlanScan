@@ -17,138 +17,175 @@ struct ContentView: View {
     @State private var isExportingJSON = false
     @State private var isExportingFloorPlan = false
     @State private var showingFloorPlanViewer = false
-    @State private var showingImagePicker = false
-    @State private var selectedImage: UIImage?
-    @State private var isProcessingImage = false
-    @State private var imageProcessingError: String?
+    @State private var showingFileImporter = false
+    @State private var importedModelURL: URL?
+    @State private var selectedTab: ContentTab = .scan
+    
+    enum ContentTab {
+        case scan
+        case imageTo3D
+    }
     
     var body: some View {
         ZStack {
-            Group {
-                if manager.isScanning {
-                    ScanView()
-                        .edgesIgnoringSafeArea(.all)
-                } else if !manager.capturedRooms.isEmpty {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.system(size: 40))
-                                VStack(alignment: .leading) {
-                                    Text("Scan Complete")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Text("\(manager.capturedRooms.count) room(s) captured")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                Spacer()
-                            }
-                            .padding()
-                            
-                            ForEach(manager.capturedRooms) { room in
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Room: \(room.roomId)")
-                                        .font(.headline)
-                                    
-                                    HStack {
-                                        Text("Floor Area")
+            VStack(spacing: 0) {
+                // Tab selector - ALWAYS visible
+                HStack(spacing: 0) {
+                    Button(action: { selectedTab = .scan }) {
+                        VStack(spacing: 4) {
+                            Image(systemName: "scanner.fill")
+                                .font(.system(size: 20))
+                            Text("LiDAR Scan")
+                                .font(.caption2)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                        .foregroundColor(selectedTab == .scan ? .blue : .gray)
+                        .background(selectedTab == .scan ? Color(.systemGray6) : Color.clear)
+                    }
+                    
+                    Button(action: { selectedTab = .imageTo3D }) {
+                        VStack(spacing: 4) {
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.system(size: 20))
+                            Text("Photo to 3D")
+                                .font(.caption2)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                        .foregroundColor(selectedTab == .imageTo3D ? .purple : .gray)
+                        .background(selectedTab == .imageTo3D ? Color(.systemGray6) : Color.clear)
+                    }
+                }
+                .background(Color(.systemBackground))
+                .borderBottom(height: 1, color: Color(.systemGray4))
+                
+                // Content based on selected tab
+                Group {
+                    if selectedTab == .imageTo3D {
+                        // Image to 3D conversion tab
+                        ImageTo3DView()
+                    } else if manager.isScanning {
+                        ScanView()
+                            .edgesIgnoringSafeArea(.all)
+                    } else if !manager.capturedRooms.isEmpty {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 20) {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.system(size: 40))
+                                    VStack(alignment: .leading) {
+                                        Text("Scan Complete")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                        Text("\(manager.capturedRooms.count) room(s) captured")
+                                            .font(.subheadline)
                                             .foregroundColor(.secondary)
-                                        Spacer()
-                                        Text(String(format: "%.2f m²", room.floorArea))
-                                            .fontWeight(.semibold)
                                     }
-                                    
-                                    HStack {
-                                        Text("Walls")
-                                            .foregroundColor(.secondary)
-                                        Spacer()
-                                        Text("\(room.walls.count) walls")
-                                            .fontWeight(.semibold)
-                                    }
+                                    Spacer()
                                 }
                                 .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(10)
                                 
-                                // Door/Window Analysis Section
-                                if !room.openings.isEmpty {
+                                ForEach(manager.capturedRooms) { room in
                                     VStack(alignment: .leading, spacing: 12) {
-                                        Text("Door/Window Analysis")
+                                        Text("Room: \(room.roomId)")
+                                            .font(.headline)
+                                        
+                                        HStack {
+                                            Text("Floor Area")
+                                                .foregroundColor(.secondary)
+                                            Spacer()
+                                            Text(MeasurementHelper.formatAreaDual(room.floorArea))
+                                                .fontWeight(.semibold)
+                                        }
+                                        
+                                        HStack {
+                                            Text("Walls")
+                                                .foregroundColor(.secondary)
+                                            Spacer()
+                                            Text("\(room.walls.count) walls")
+                                                .fontWeight(.semibold)
+                                        }
+                                    }
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(10)
+                                    
+                                    // Door/Window Analysis Section
+                                    if !room.openings.isEmpty {
+                                        OpeningAnalysisView(openings: room.openings)
+                                    }
+                                    
+                                    // Quality Report Section
+                                    if let report = room.qualityReport {
+                                        ScanQualityView(report: report)
+                                    }
+                                    
+                                    // Wall Details Section
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("Wall Details")
                                             .font(.headline)
                                             .padding(.bottom, 4)
                                         
-                                        let doors = room.openings.filter { $0.type == "door" }
-                                        let windows = room.openings.filter { $0.type == "window" }
-                                        
-                                        HStack {
-                                            Label("Total Openings", systemImage: "square.grid.2x2")
-                                                .font(.subheadline)
-                                                .foregroundColor(.secondary)
-                                            Spacer()
-                                            Text("\(room.openings.count)")
-                                                .font(.subheadline)
-                                                .fontWeight(.semibold)
-                                        }
-                                        
-                                        if !doors.isEmpty {
-                                            HStack {
-                                                Label("Doors", systemImage: "door.right.hand")
-                                                    .font(.subheadline)
-                                                    .foregroundColor(.secondary)
-                                                Spacer()
-                                                Text("\(doors.count)")
-                                                    .font(.subheadline)
-                                                    .fontWeight(.semibold)
+                                        ForEach(Array(room.walls.enumerated()), id: \.element.id) { index, wall in
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                HStack {
+                                                    Text("Wall \(index + 1)")
+                                                        .font(.subheadline)
+                                                        .fontWeight(.semibold)
+                                                    Spacer()
+                                                    Text(wall.id.uuidString.prefix(8))
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                                
+                                                Divider()
+                                                
+                                                HStack {
+                                                    Label("Height", systemImage: "arrow.up.and.down")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                    Spacer()
+                                                    Text(MeasurementHelper.formatDistanceDual(wall.height))
+                                                        .font(.caption)
+                                                }
+                                                
+                                                HStack {
+                                                    Label("Length", systemImage: "ruler")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                    Spacer()
+                                                    Text(MeasurementHelper.formatDistanceDual(wall.length))
+                                                        .font(.caption)
+                                                }
+                                                
+                                                HStack {
+                                                    Label("Thickness", systemImage: "arrow.left.and.right")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                    Spacer()
+                                                    Text(MeasurementHelper.formatDistanceDual(wall.thickness))
+                                                        .font(.caption)
+                                                }
+                                                
+                                                HStack {
+                                                    Label("Position", systemImage: "location")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                    Spacer()
+                                                    Text(String(format: "(%.2f, %.2f, %.2f)", wall.position.x, wall.position.y, wall.position.z))
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                }
                                             }
-                                            
-                                            let totalDoorArea = doors.reduce(0) { $0 + (Float($1.width) * Float($1.height)) }
-                                            HStack {
-                                                Text("  Door Area")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                                Spacer()
-                                                Text(String(format: "%.2f m²", totalDoorArea))
-                                                    .font(.caption)
-                                                    .fontWeight(.semibold)
-                                            }
-                                        }
-                                        
-                                        if !windows.isEmpty {
-                                            HStack {
-                                                Label("Windows", systemImage: "square.split.2x1")
-                                                    .font(.subheadline)
-                                                    .foregroundColor(.secondary)
-                                                Spacer()
-                                                Text("\(windows.count)")
-                                                    .font(.subheadline)
-                                                    .fontWeight(.semibold)
-                                            }
-                                            
-                                            let totalWindowArea = windows.reduce(0) { $0 + (Float($1.width) * Float($1.height)) }
-                                            HStack {
-                                                Text("  Window Area")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                                Spacer()
-                                                Text(String(format: "%.2f m²", totalWindowArea))
-                                                    .font(.caption)
-                                                    .fontWeight(.semibold)
-                                            }
-                                        }
-                                        
-                                        let totalOpeningArea = room.openings.reduce(0) { $0 + (Float($1.width) * Float($1.height)) }
-                                        Divider()
-                                        HStack {
-                                            Text("Total Opening Area")
-                                                .font(.subheadline)
-                                                .fontWeight(.semibold)
-                                            Spacer()
-                                            Text(String(format: "%.2f m²", totalOpeningArea))
-                                                .font(.subheadline)
-                                                .fontWeight(.semibold)
-                                                .foregroundColor(.blue)
+                                            .padding()
+                                            .background(Color(.systemBackground))
+                                            .cornerRadius(8)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .stroke(Color(.systemGray4), lineWidth: 1)
+                                            )
                                         }
                                     }
                                     .padding()
@@ -156,200 +193,99 @@ struct ContentView: View {
                                     .cornerRadius(10)
                                 }
                                 
-                                // Quality Report Section
-                                if let report = room.qualityReport {
-                                    ScanQualityView(report: report)
-                                }
-                                
-                                // Wall Details Section
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Wall Details")
-                                        .font(.headline)
-                                        .padding(.bottom, 4)
-                                    
-                                    ForEach(Array(room.walls.enumerated()), id: \.element.id) { index, wall in
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            HStack {
-                                                Text("Wall \(index + 1)")
-                                                    .font(.subheadline)
-                                                    .fontWeight(.semibold)
-                                                Spacer()
-                                                Text(wall.id)
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                            
-                                            Divider()
-                                            
-                                            HStack {
-                                                Label("Height", systemImage: "arrow.up.and.down")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                                Spacer()
-                                                Text(String(format: "%.2f m", wall.height))
-                                                    .font(.caption)
-                                            }
-                                            
-                                            if let length = wall.length {
-                                                HStack {
-                                                    Label("Length", systemImage: "ruler")
-                                                        .font(.caption)
-                                                        .foregroundColor(.secondary)
-                                                    Spacer()
-                                                    Text(String(format: "%.2f m", length))
-                                                        .font(.caption)
-                                                }
-                                            }
-                                            
-                                            if let thickness = wall.thickness {
-                                                HStack {
-                                                    Label("Thickness", systemImage: "arrow.left.and.right")
-                                                        .font(.caption)
-                                                        .foregroundColor(.secondary)
-                                                    Spacer()
-                                                    Text(String(format: "%.2f m", thickness))
-                                                        .font(.caption)
-                                                }
-                                            }
-                                            
-                                            HStack {
-                                                Label("Position", systemImage: "location")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                                Spacer()
-                                                Text(String(format: "(%.2f, %.2f, %.2f)", wall.position.x, wall.position.y, wall.position.z))
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                            }
+                                VStack(spacing: 12) {
+                                    Button(action: { showingFloorPlanViewer = true }) {
+                                        HStack {
+                                            Image(systemName: "map")
+                                            Text("View Floor Plan")
                                         }
+                                        .frame(maxWidth: .infinity)
                                         .padding()
-                                        .background(Color(.systemBackground))
-                                        .cornerRadius(8)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .stroke(Color(.systemGray4), lineWidth: 1)
-                                        )
+                                        .background(Color.indigo)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(10)
+                                    }
+                                    
+                                    Button(action: exportJSON) {
+                                        HStack {
+                                            Image(systemName: "doc.text")
+                                            if isExportingJSON {
+                                                ProgressView()
+                                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                            }
+                                            Text(isExportingJSON ? "Exporting..." : "Export JSON")
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.blue)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(10)
+                                        .disabled(isExportingJSON || isExportingUSDZ)
+                                    }
+
+                                    Button(action: exportUSDZ) {
+                                        HStack {
+                                            Image(systemName: "cube")
+                                            if isExportingUSDZ {
+                                                ProgressView()
+                                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                            }
+                                            Text(isExportingUSDZ ? "Exporting..." : "Export USDZ")
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.orange)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(10)
+                                        .disabled(isExportingUSDZ)
+                                    }
+
+                                    Button(action: exportFloorPlan) {
+                                        HStack {
+                                            Image(systemName: "square.grid.2x2")
+                                            if isExportingFloorPlan {
+                                                ProgressView()
+                                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                            }
+                                            Text(isExportingFloorPlan ? "Exporting..." : "Export Floor Plan")
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.purple)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(10)
+                                        .disabled(isExportingFloorPlan || isExportingJSON || isExportingUSDZ)
+                                    }
+                                    
+                                    Button(action: resetScan) {
+                                        HStack {
+                                            Image(systemName: "arrow.clockwise")
+                                            Text("New Scan")
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.green)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(10)
                                     }
                                 }
                                 .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(10)
-                            }
-                            
-                            VStack(spacing: 12) {
-                                Button(action: { showingFloorPlanViewer = true }) {
-                                    HStack {
-                                        Image(systemName: "map")
-                                        Text("View Floor Plan")
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.indigo)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(10)
-                                }
-                                
-                                Button(action: exportJSON) {
-                                    HStack {
-                                        Image(systemName: "doc.text")
-                                        if isExportingJSON {
-                                            ProgressView()
-                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        }
-                                        Text(isExportingJSON ? "Exporting..." : "Export JSON")
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(10)
-                                    .disabled(isExportingJSON || isExportingUSDZ)
-                                }
-
-                                Button(action: exportUSDZ) {
-                                    HStack {
-                                        Image(systemName: "cube")
-                                        if isExportingUSDZ {
-                                            ProgressView()
-                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        }
-                                        Text(isExportingUSDZ ? "Exporting..." : "Export USDZ")
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.orange)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(10)
-                                    .disabled(isExportingUSDZ)
-                                }
-
-                                Button(action: exportFloorPlan) {
-                                    HStack {
-                                        Image(systemName: "square.grid.2x2")
-                                        if isExportingFloorPlan {
-                                            ProgressView()
-                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        }
-                                        Text(isExportingFloorPlan ? "Exporting..." : "Export Floor Plan")
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.purple)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(10)
-                                    .disabled(isExportingFloorPlan || isExportingJSON || isExportingUSDZ)
-                                }
-                                
-                                Button(action: resetScan) {
-                                    HStack {
-                                        Image(systemName: "arrow.clockwise")
-                                        Text("New Scan")
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.green)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(10)
-                                }
                             }
                             .padding()
                         }
-                        .padding()
+                    } else {
+                        WelcomeView(
+                            onStartScan: {
+                                print("🚀 Start scan button tapped")
+                                manager.startScan()
+                            }
+                        )
                     }
-                } else {
-                    WelcomeView(
-                        onStartScan: {
-                            print("🚀 Start scan button tapped")
-                            manager.startScan()
-                        },
-                        onImagePicker: {
-                            print("📸 Image picker button tapped")
-                            showingImagePicker = true
-                        }
-                    )
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .sheet(isPresented: $showingShareSheet) {
-                if let url = exportedURL {
-                    ShareSheet(items: [url])
-                }
-            }
-            .sheet(isPresented: $showingFloorPlanViewer) {
-                if let room = manager.capturedRooms.last {
-                    FloorPlanViewer(room: room)
-                }
-            }
-            .sheet(isPresented: $showingImagePicker) {
-                ImagePickerView(selectedImage: $selectedImage, sourceType: .photoLibrary)
-                    .onDisappear {
-                        if let image = selectedImage {
-                            processImageTo3D(image)
-                        }
-                    }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             
-            // Error overlay
+            // Error overlay (manager errors)
             if let error = manager.errorMessage {
                 VStack {
                     Spacer()
@@ -373,6 +309,43 @@ struct ContentView: View {
                     .cornerRadius(10)
                     .padding()
                 }
+            }
+        }
+            .sheet(isPresented: $showingShareSheet) {
+                if let url = exportedURL {
+                    ShareSheet(items: [url])
+                }
+            }
+            .sheet(isPresented: $showingFloorPlanViewer) {
+                if let room = manager.capturedRooms.last {
+                    FloorPlanViewer(room: room)
+                }
+            }
+            .sheet(isPresented: $manager.importedModelPresented) {
+                if let url = manager.importedModelURL {
+                    if #available(iOS 16.0, *) {
+                        ImportedModelViewer(url: url)
+                    } else {
+                        Text("Requires iOS 16+")
+                    }
+                } else {
+                    Text("No file selected")
+                }
+            }
+        .fileImporter(
+            isPresented: $showingFileImporter,
+            allowedContentTypes: [.usdz, .item],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    importedModelURL = url
+                    showingShareSheet = false
+                    manager.presentImportedModel(url: url)
+                }
+            case .failure(let error):
+                manager.errorMessage = "Import failed: \(error.localizedDescription)"
             }
         }
     }
@@ -454,45 +427,11 @@ struct ContentView: View {
             manager.startScan()
         }
     }
-    
-    private func processImageTo3D(_ image: UIImage) {
-        print("🖼️ Processing image to 3D model...")
-        isProcessingImage = true
-        imageProcessingError = nil
-        
-        Task {
-            // Analyze image using Vision framework
-            guard let roomData = ImageTo3DProcessor.analyzeRoomImage(image) else {
-                await MainActor.run {
-                    imageProcessingError = "Failed to detect room boundaries in image"
-                    isProcessingImage = false
-                }
-                return
-            }
-            
-            print("✅ Room analysis complete: \(roomData.estimatedWidth)m × \(roomData.estimatedLength)m × \(roomData.estimatedHeight)m")
-            
-            // Generate 3D model from image analysis
-            let room3D = ImageTo3DProcessor.generate3DModel(from: roomData)
-            
-            // Add to captured rooms (background thread)
-            await MainActor.run {
-                manager.capturedRooms.append(room3D)
-                isProcessingImage = false
-                selectedImage = nil
-                
-                print("✅ 3D model generated successfully!")
-                print("Room dimensions: \(roomData.estimatedWidth)m W × \(roomData.estimatedLength)m L × \(roomData.estimatedHeight)m H")
-                print("Floor area: \(String(format: "%.2f", room3D.floorArea)) m²")
-            }
-        }
-    }
 }
 
 // MARK: - Welcome View
 struct WelcomeView: View {
     let onStartScan: () -> Void
-    let onImagePicker: () -> Void
     
     var body: some View {
         VStack(spacing: 30) {
@@ -537,26 +476,8 @@ struct WelcomeView: View {
                 .font(.headline)
             }
             .padding(.horizontal, 40)
-            
-            Divider()
-                .padding(.horizontal)
-            
-            Button(action: onImagePicker) {
-                HStack(spacing: 10) {
-                    Image(systemName: "photo.circle")
-                    Text("Generate from Photo")
-                        .fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(16)
-                .background(Color.purple)
-                .foregroundColor(.white)
-                .cornerRadius(12)
-                .font(.headline)
-            }
-            .padding(.horizontal, 40)
-            
-            Text("Requires iPhone with LiDAR (iPhone 12 Pro or later)")
+
+            Text("Use the 'Photo to 3D' tab above to convert images to 3D models")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -656,7 +577,7 @@ struct RoomCard: View {
                 Text("Floor Area")
                     .foregroundColor(.secondary)
                 Spacer()
-                Text(String(format: "%.2f m²", room.floorArea))
+                Text(MeasurementHelper.formatAreaDual(room.floorArea))
                     .fontWeight(.semibold)
             }
 
@@ -682,7 +603,7 @@ struct RoomCard: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                     ForEach(room.walls.prefix(4)) { wall in
-                        Text("• \(wall.id): h=\(String(format: "%.2f", wall.height))m, len=\(String(format: "%.2f", wall.length ?? 0))m")
+                        Text("• \(wall.id.uuidString.prefix(8)): h=\(MeasurementHelper.formatDistanceDual(wall.height)), len=\(MeasurementHelper.formatDistanceDual(wall.length ?? 0))")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -701,7 +622,7 @@ struct RoomCard: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                     ForEach(room.openings.prefix(4)) { opening in
-                        Text("• \(opening.type) \(opening.id): w=\(String(format: "%.2f", opening.width))m, h=\(String(format: "%.2f", opening.height))m")
+                        Text("• \(opening.type) \(opening.id): w=\(MeasurementHelper.formatDistanceDual(opening.width)), h=\(MeasurementHelper.formatDistanceDual(opening.height))")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -927,6 +848,94 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Helper Views
+struct OpeningAnalysisView: View {
+    let openings: [OpeningSummary]
+    
+    var body: some View {
+        let doors: [OpeningSummary] = openings.filter { $0.type == "door" }
+        let windows: [OpeningSummary] = openings.filter { $0.type == "window" }
+        
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Door/Window Analysis")
+                .font(.headline)
+                .padding(.bottom, 4)
+            
+            HStack {
+                Label("Total Openings", systemImage: "square.grid.2x2")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("\(openings.count)")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+            
+            if !doors.isEmpty {
+                HStack {
+                    Label("Doors", systemImage: "door.right.hand")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("\(doors.count)")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+                
+                let totalDoorArea: Float = doors.reduce(0) { $0 + ($1.width * $1.height) }
+                HStack {
+                    Text("  Door Area")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(MeasurementHelper.formatAreaDual(totalDoorArea))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+            
+            if !windows.isEmpty {
+                HStack {
+                    Label("Windows", systemImage: "rectangle.inset.filled")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("\(windows.count)")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+                
+                let totalWindowArea: Float = windows.reduce(0) { $0 + ($1.width * $1.height) }
+                HStack {
+                    Text("  Window Area")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(MeasurementHelper.formatAreaDual(totalWindowArea))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
+    }
+}
+
+// MARK: - View Extensions
+
+extension View {
+    func borderBottom(height: CGFloat, color: Color) -> some View {
+        VStack(spacing: 0) {
+            self
+            Divider()
+                .frame(height: height)
+                .background(color)
+        }
+    }
 }
 
 #Preview {

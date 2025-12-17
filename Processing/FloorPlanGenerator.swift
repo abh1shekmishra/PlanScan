@@ -13,10 +13,15 @@
  */
 
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
+#if canImport(RoomPlan)
 import RoomPlan
+#endif
 
 @available(iOS 16.0, *)
+#if canImport(UIKit) && canImport(RoomPlan)
 class FloorPlanGenerator {
     
     // MARK: - Constants
@@ -285,8 +290,9 @@ class FloorPlanGenerator {
         context.addLine(to: CGPoint(x: scaleBarX + scaleBarLength, y: scaleBarY + 5))
         context.strokePath()
         
-        // Draw scale label
-        let scaleText = "2m"
+        // Draw scale label (show both meters and feet)
+        let scaleFeet = MeasurementHelper.toFeet(2.0)
+        let scaleText = String(format: "2 m (%.2f ft)", scaleFeet)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 14, weight: .semibold),
             .foregroundColor: textColor
@@ -297,7 +303,7 @@ class FloorPlanGenerator {
         // Draw room dimensions
         let roomWidth = bounds.maxX - bounds.minX
         let roomHeight = bounds.maxZ - bounds.minZ
-        let dimensionsText = String(format: "%.2f m × %.2f m", roomWidth, roomHeight)
+        let dimensionsText = "\(MeasurementHelper.formatDistanceDual(roomWidth)) × \(MeasurementHelper.formatDistanceDual(roomHeight))"
         let dimAttributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 12, weight: .regular),
             .foregroundColor: textColor
@@ -351,3 +357,9 @@ class FloorPlanGenerator {
         case jpeg
     }
 }
+#else
+// Fallback stub for platforms without UIKit/RoomPlan
+class FloorPlanGenerator {
+    static func generateFloorPlan(from capturedRoom: Any, size: CGSize = .zero) -> UIImage? { nil }
+}
+#endif

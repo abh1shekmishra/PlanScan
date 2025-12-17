@@ -6,7 +6,9 @@
  */
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// SwiftUI wrapper for UIImagePickerController
 struct ImagePickerView: UIViewControllerRepresentable {

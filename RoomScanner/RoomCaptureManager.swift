@@ -1,3 +1,6 @@
+// This patch removes duplicate definitions of WallSummary and OpeningSummary
+// while keeping the CapturedRoomSummary using shared types.
+
 /*
  RoomCaptureManager.swift
  Purpose: High-level manager for room scanning operations using iOS 16+ RoomPlan.
@@ -5,10 +8,12 @@
  Created: December 2025
  */
 
-import Foundation
+import Foundation  
 import SwiftUI
 import Combine
+#if canImport(RoomPlan)
 import RoomPlan
+#endif
 import simd
 
 /// Main manager class for room capture operations
@@ -27,6 +32,8 @@ class RoomCaptureManager: ObservableObject {
     var lastCapturedRoom: CapturedRoom?
         // Voice guidance
         let voiceGuidance = VoiceGuidanceManager()
+    @Published var importedModelPresented: Bool = false
+    @Published var importedModelURL: URL?
     
     
     // MARK: - Private Properties
@@ -61,20 +68,32 @@ class RoomCaptureManager: ObservableObject {
         
         // Clear previous data
         capturedRooms.removeAll()
+        lastCapturedRoom = nil
         errorMessage = nil
         scanProgress = 0.0
         scanStartTime = Date()
         
+        // Set scanning flag FIRST to signal to the UI that we need the capture view
         isScanning = true
         statusMessage = "Point camera at room. Move slowly around all walls..."
-            // Start voice guidance
-            voiceGuidance.startScanning()
         
+        // Start voice guidance
+        voiceGuidance.startScanning()
         
-        // Start the RoomPlan session when the capture view registers its session
-        if let session = captureSession {
+        // Try to start session immediately if available
+        // If not available yet, the RoomCaptureViewWrapper will start it in updateUIView
+        if let session = captureSession, !sessionIsRunning {
             let configuration = RoomCaptureSession.Configuration()
-            session.run(configuration: configuration)
+            do {
+                try session.run(configuration: configuration)
+                sessionIsRunning = true
+                print("✅ RoomPlan session started immediately")
+            } catch {
+                print("⚠️ Failed to start session immediately: \(error)")
+                // The wrapper will try again in updateUIView
+            }
+        } else if captureSession == nil {
+            print("⏳ RoomCaptureView not yet ready - will start session when available")
         }
         
         print("✅ RoomPlan scan initiated")
@@ -170,11 +189,24 @@ class RoomCaptureManager: ObservableObject {
     /// Handle RoomPlan capture error
     func handleRoomCaptureError(_ error: Error) {
         print("❌ Capture error: \(error.localizedDescription)")
-        errorMessage = error.localizedDescription
         
-        // Only stop scanning if it's a critical error
-        if error.localizedDescription.lowercased().contains("user cancelled") {
-            isScanning = false
+        let errorDesc = error.localizedDescription.lowercased()
+        
+        // For world tracking failures, keep scanning flag on to allow retry
+        if errorDesc.contains("world tracking") {
+            print("⚠️ World tracking failed - allowing user to retry without stopping scan")
+            statusMessage = "Tracking lost. Adjust lighting or position and try again..."
+            // Don't clear isScanning - user can retry
+            return
+        }
+        
+        // For other errors, stop the scan
+        isScanning = false
+        
+        if errorDesc.contains("user cancelled") {
+            statusMessage = "Scan cancelled"
+        } else {
+            statusMessage = "Scan failed"
         }
     }
 
@@ -211,12 +243,13 @@ class RoomCaptureManager: ObservableObject {
             let normal = simd_normalize(simd_float3(transform.columns.2.x, transform.columns.2.y, transform.columns.2.z))
             
             let wallSummary = WallSummary(
-                id: wallId,
+                length: dimensions.x,
                 height: dimensions.y,
                 thickness: 0.15, // Standard wall thickness
-                length: dimensions.x,
-                position: position,
-                normal: normal
+                normal: normal,
+                start: position - simd_float3(dimensions.x / 2, 0, 0),
+                end: position + simd_float3(dimensions.x / 2, 0, 0),
+                position: position
             )
             walls.append(wallSummary)
         }
@@ -230,11 +263,10 @@ class RoomCaptureManager: ObservableObject {
             let position = simd_float3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
             
             let opening = OpeningSummary(
-                id: "door-\(idx + 1)",
-                type: "door",
                 width: dimensions.x,
                 height: dimensions.y,
-                position: position
+                position: position,
+                type: "door"
             )
             openings.append(opening)
         }
@@ -245,11 +277,10 @@ class RoomCaptureManager: ObservableObject {
             let position = simd_float3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
             
             let opening = OpeningSummary(
-                id: "window-\(idx + 1)",
-                type: "window",
                 width: dimensions.x,
                 height: dimensions.y,
-                position: position
+                position: position,
+                type: "window"
             )
             openings.append(opening)
         }
@@ -342,6 +373,17 @@ class RoomCaptureManager: ObservableObject {
     }
 }
 
+// MARK: - Imported model presentation
+@available(iOS 16.0, *)
+extension RoomCaptureManager {
+    func presentImportedModel(url: URL) {
+        // Retain URL and flag presentation; UI will decide how to render
+        importedModelURL = url
+        importedModelPresented = true
+        print("📁 Imported model URL: \(url.path)")
+    }
+}
+
 // MARK: - Data Models
 
 struct CapturedRoomSummary: Identifiable, Codable {
@@ -370,88 +412,4 @@ struct CapturedRoomSummary: Identifiable, Codable {
     }
 }
 
-struct WallSummary: Identifiable, Codable {
-    let id: String
-    let height: Float
-    let thickness: Float?
-    let length: Float?
-    let position: simd_float3
-    let normal: simd_float3
-    
-    enum CodingKeys: String, CodingKey {
-        case id, height, thickness, length, position, normal
-    }
-    
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(height, forKey: .height)
-        try container.encodeIfPresent(thickness, forKey: .thickness)
-        try container.encodeIfPresent(length, forKey: .length)
-        try container.encode([position.x, position.y, position.z], forKey: .position)
-        try container.encode([normal.x, normal.y, normal.z], forKey: .normal)
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        height = try container.decode(Float.self, forKey: .height)
-        thickness = try container.decodeIfPresent(Float.self, forKey: .thickness)
-        length = try container.decodeIfPresent(Float.self, forKey: .length)
-        
-        let posArray = try container.decode([Float].self, forKey: .position)
-        position = simd_float3(posArray[0], posArray[1], posArray[2])
-        
-        let normalArray = try container.decode([Float].self, forKey: .normal)
-        normal = simd_float3(normalArray[0], normalArray[1], normalArray[2])
-    }
-    
-    init(id: String, height: Float, thickness: Float?, length: Float?, position: simd_float3, normal: simd_float3) {
-        self.id = id
-        self.height = height
-        self.thickness = thickness
-        self.length = length
-        self.position = position
-        self.normal = normal
-    }
-}
-
-struct OpeningSummary: Identifiable, Codable {
-    let id: String
-    let type: String
-    let width: Float
-    let height: Float
-    let position: simd_float3
-    
-    enum CodingKeys: String, CodingKey {
-        case id, type, width, height, position
-    }
-    
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(type, forKey: .type)
-        try container.encode(width, forKey: .width)
-        try container.encode(height, forKey: .height)
-        try container.encode([position.x, position.y, position.z], forKey: .position)
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        type = try container.decode(String.self, forKey: .type)
-        width = try container.decode(Float.self, forKey: .width)
-        height = try container.decode(Float.self, forKey: .height)
-        
-        let posArray = try container.decode([Float].self, forKey: .position)
-        position = simd_float3(posArray[0], posArray[1], posArray[2])
-    }
-    
-    init(id: String, type: String, width: Float, height: Float, position: simd_float3) {
-        self.id = id
-        self.type = type
-        self.width = width
-        self.height = height
-        self.position = position
-    }
-}
+// WallSummary and OpeningSummary definitions should remain intact.

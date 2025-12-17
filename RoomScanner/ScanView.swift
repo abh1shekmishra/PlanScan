@@ -1,4 +1,8 @@
+import Foundation
 import SwiftUI
+#if canImport(RoomPlan)
+import RoomPlan
+#endif
 
 /// ScanView displays the RoomPlan capture interface
 @available(iOS 16.0, *)
@@ -84,6 +88,51 @@ struct ScanView: View {
                         .frame(width: 50, height: 50)
                         .background(manager.voiceGuidance.isEnabled ? Color.blue : Color.gray)
                         .clipShape(Circle())
+                }
+                
+                // Show error with retry option if available
+                if let errorMsg = manager.errorMessage {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(.yellow)
+                            Text("Error")
+                                .fontWeight(.semibold)
+                            Spacer()
+                            Button(action: { manager.errorMessage = nil }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        Text(errorMsg)
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .lineLimit(3)
+                        
+                        // Retry button for world tracking failures
+                        if errorMsg.lowercased().contains("tracking") {
+                            Button(action: {
+                                manager.errorMessage = nil
+                                manager.statusMessage = "Retrying... Point at well-lit area with visible features..."
+                                manager.isScanning = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text("Retry Scan")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(10)
+                                .background(Color.orange)
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                                .font(.subheadline)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(10)
                 }
                 
                 // Stop scan button

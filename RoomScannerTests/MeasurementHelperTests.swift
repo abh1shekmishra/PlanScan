@@ -72,7 +72,7 @@ final class MeasurementHelperTests: XCTestCase {
             normal: simd_float3(0, 0, 1)  // Facing +Z
         )
         
-        let distance = MeasurementHelper.distanceBetweenPlanes(wall1, wall2)
+        let distance = MeasurementHelper.distanceBetweenPlanes(wall1, wall2) 
         
         // Distance should be approximately sqrt(50) ≈ 7.07
         XCTAssertEqual(distance, sqrt(50), accuracy: 0.1, "Distance should be approximately 7.07m")
@@ -80,7 +80,7 @@ final class MeasurementHelperTests: XCTestCase {
     
     // MARK: - Plane Fitting
     
-    func testPlaneFrom3Points() {
+    func testPlaneFrom3Points() { 
         // Three points forming a horizontal plane at y=1
         let p1 = simd_float3(0, 1, 0)
         let p2 = simd_float3(1, 1, 0)

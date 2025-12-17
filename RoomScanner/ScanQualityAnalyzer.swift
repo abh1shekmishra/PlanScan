@@ -194,12 +194,13 @@ class ScanQualityAnalyzer {
             }
             
             // Check for unrealistic dimensions
-            if let length = wall.length {
+            let length = wall.length
+            if length > 0 {
                 if length < 0.5 {
                     issues.append(ValidationIssue(
                         severity: .warning,
                         title: "Unusually Short Wall",
-                        description: "Wall \(wall.id) is only \(String(format: "%.2f", length))m long.",
+                        description: "Wall \(wall.id.uuidString) is only \(String(format: "%.2f", length))m long.",
                         recommendation: "Verify this measurement. It may indicate a scanning error."
                     ))
                     score -= 5
@@ -207,7 +208,7 @@ class ScanQualityAnalyzer {
                     issues.append(ValidationIssue(
                         severity: .warning,
                         title: "Unusually Long Wall",
-                        description: "Wall \(wall.id) is \(String(format: "%.2f", length))m long.",
+                        description: "Wall \(wall.id.uuidString) is \(String(format: "%.2f", length))m long.",
                         recommendation: "Verify this measurement for large spaces."
                     ))
                     score -= 5
@@ -355,14 +356,15 @@ class ScanQualityAnalyzer {
         for wall in walls {
             var confidence: MeasurementConfidence = .high
             
-            // Check completeness
-            if wall.length == nil || wall.thickness == nil {
+            // Check completeness and dimensions
+            let length = wall.length
+            if length <= 0 {
                 confidence = .low
-            } else if let length = wall.length, length < 0.5 || length > 15 {
+            } else if length < 0.5 || length > 15 {
                 confidence = .medium
             }
             
-            confidenceMap[wall.id] = confidence
+            confidenceMap[wall.id.uuidString] = confidence
         }
         
         return confidenceMap

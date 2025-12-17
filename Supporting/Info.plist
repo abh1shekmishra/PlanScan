@@ -13,10 +13,21 @@
 	<!-- Photo Library Usage (Optional - for saving exports) -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Save room scans and measurements to your photo library.</string>
+
+	<!-- Photo Library Usage (Read access for selecting photos) -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Access your photos to generate 3D models from room images.</string>
 	
 	<!-- Supports Document Browser -->
 	<key>UISupportsDocumentBrowser</key>
 	<true/>
+
+	<!-- App Transport Security: allow local networking to http://127.0.0.1 -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	
 	<!-- File Sharing Enabled -->
 	<key>UIFileSharingEnabled</key>

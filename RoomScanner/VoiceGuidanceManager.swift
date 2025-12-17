@@ -6,10 +6,11 @@
  */
 
 import Foundation
-import AVFoundation 
 import Combine
+#if canImport(AVFoundation) && os(iOS)
+import AVFoundation
 
-/// Manages voice guidance and feedback during scanning
+/// Manages voice guidance and feedback during scanning (iOS only)
 @MainActor
 class VoiceGuidanceManager: ObservableObject {
     @Published var isEnabled: Bool = true
@@ -263,6 +264,19 @@ class VoiceGuidanceManager: ObservableObject {
         }
     }
 }
+#else
+// Fallback stub for non-iOS platforms
+@MainActor
+class VoiceGuidanceManager: ObservableObject {
+    @Published var isEnabled: Bool = false
+    @Published var currentGuidance: String = ""
+    func startScanning() {}
+    func stopScanning() {}
+    func scanCompleted(wallCount: Int, openingCount: Int) {}
+    func announceWallDetection(wallNumber: Int) {}
+    func updateCoverage(percentage: Int) {}
+}
+#endif
 
 // MARK: - Supporting Types
 

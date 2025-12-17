@@ -1,8 +1,11 @@
 import SwiftUI
+import Foundation
+#if canImport(RoomPlan) 
 import RoomPlan
+#endif
 
 /// Wrapper for RoomCaptureView (iOS 16+)
-@available(iOS 16.0, *)
+@available(iOS 16.0, *) 
 struct RoomCaptureViewWrapper: UIViewRepresentable {
     @EnvironmentObject var manager: RoomCaptureManager
     
@@ -14,13 +17,24 @@ struct RoomCaptureViewWrapper: UIViewRepresentable {
         if let session = captureView.captureSession {
             session.delegate = context.coordinator
             manager.registerCaptureSession(session)
-        }
-
-        // If a scan was already requested, start immediately
-        if manager.isScanning, let session = captureView.captureSession, !manager.sessionIsRunning {
-            let configuration = RoomCaptureSession.Configuration()
-            session.run(configuration: configuration)
-            manager.setSessionRunning(true)
+            print("✅ RoomCaptureSession registered")
+            
+            // If a scan was already requested, start immediately
+            if manager.isScanning && !manager.sessionIsRunning {
+                let configuration = RoomCaptureSession.Configuration()
+                do {
+                    try session.run(configuration: configuration)
+                    manager.setSessionRunning(true)
+                    print("✅ Session started in makeUIView")
+                } catch {
+                    print("❌ Failed to start session in makeUIView: \(error)")
+                    manager.errorMessage = "Failed to start scan: \(error.localizedDescription)"
+                    manager.isScanning = false
+                }
+            }
+        } else {
+            print("❌ Failed to get RoomCaptureSession from RoomCaptureView")
+            manager.errorMessage = "Failed to initialize camera. Try restarting the app."
         }
 
         return captureView
@@ -35,10 +49,18 @@ struct RoomCaptureViewWrapper: UIViewRepresentable {
         }
 
         // Start the session when scanning is requested
-        if manager.isScanning, !manager.sessionIsRunning {
+        // This handles the case where the view was created before startScan() was called
+        if manager.isScanning && !manager.sessionIsRunning {
             let configuration = RoomCaptureSession.Configuration()
-            session.run(configuration: configuration)
-            manager.setSessionRunning(true)
+            do {
+                try session.run(configuration: configuration)
+                manager.setSessionRunning(true)
+                print("✅ Session started in updateUIView")
+            } catch {
+                print("❌ Failed to start session in updateUIView: \(error)")
+                manager.errorMessage = "Failed to start scan: \(error.localizedDescription)"
+                manager.isScanning = false
+            }
         }
     }
     
@@ -117,8 +139,32 @@ struct RoomCaptureViewWrapper: UIViewRepresentable {
         func captureSession(_ session: RoomCaptureSession, didEndWith data: CapturedRoomData, error: Error?) {
             if let error = error {
                 print("❌ Session error: \(error.localizedDescription)")
+                
+                // Map common RoomPlan errors to user-friendly messages with recovery steps
+                let userMessage: String
+                let errorLower = error.localizedDescription.lowercased()
+                
+                if errorLower.contains("world tracking") {
+                    userMessage = "Scan failed: Lost spatial tracking. Point camera at well-lit area with visible features (walls, furniture, etc). Hold steady for 2-3 seconds, then move slowly."
+                } else if errorLower.contains("no features") || errorLower.contains("insufficient") {
+                    userMessage = "Scan failed: Room has too few visual features. Improve lighting and show more details (furniture, posters, patterns) to the camera."
+                } else if errorLower.contains("timeout") {
+                    userMessage = "Scan failed: Took too long or lost tracking. Start with a smaller room or try in brighter conditions."
+                } else if errorLower.contains("camera") || errorLower.contains("permission") {
+                    userMessage = "Camera access denied or unavailable. Check privacy settings and restart the app."
+                } else if errorLower.contains("user cancelled") {
+                    userMessage = "Scan cancelled."
+                } else {
+                    userMessage = "Scan failed: \(error.localizedDescription)\n\nTips: Ensure good lighting, show camera details (furniture, walls), and move slowly."
+                }
+                
                 Task { @MainActor in
                     manager.handleRoomCaptureError(error)
+                    manager.errorMessage = userMessage
+                    // Don't auto-stop for world tracking - user should retry
+                    if !errorLower.contains("world tracking") {
+                        manager.isScanning = false
+                    }
                 }
                 return
             }
@@ -130,6 +176,10 @@ struct RoomCaptureViewWrapper: UIViewRepresentable {
                 }
             } else {
                 print("⚠️ Session ended without room data")
+                Task { @MainActor in
+                    manager.errorMessage = "Scan ended without capturing room data. Try again with better lighting and visible features."
+                    manager.isScanning = false
+                }
             }
         }
     }

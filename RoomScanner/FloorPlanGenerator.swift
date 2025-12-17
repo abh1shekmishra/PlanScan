@@ -55,21 +55,23 @@ class FloorPlanGenerator {
         let rotatedWalls = roomSummary.walls.map { wall in
             WallSummary(
                 id: wall.id,
+                length: wall.length,
                 height: wall.height,
                 thickness: wall.thickness,
-                length: wall.length,
-                position: rotatePoint(wall.position, angle: -alignmentAngle),
-                normal: rotatePoint(wall.normal, angle: -alignmentAngle)
+                normal: rotatePoint(wall.normal, angle: -alignmentAngle),
+                start: rotatePoint(wall.start, angle: -alignmentAngle),
+                end: rotatePoint(wall.end, angle: -alignmentAngle),
+                position: rotatePoint(wall.position, angle: -alignmentAngle)
             )
         }
         
         let rotatedOpenings = roomSummary.openings.map { opening in
             OpeningSummary(
                 id: opening.id,
-                type: opening.type,
                 width: opening.width,
                 height: opening.height,
-                position: rotatePoint(opening.position, angle: -alignmentAngle)
+                position: rotatePoint(opening.position, angle: -alignmentAngle),
+                type: opening.type
             )
         }
         
@@ -197,8 +199,8 @@ class FloorPlanGenerator {
 
         // Get bounds from oriented wall rectangles
         for wall in roomSummary.walls {
-            let length = wall.length ?? 1.0
-            let thickness = wall.thickness ?? defaultThickness
+            let length = wall.length
+            let thickness = wall.thickness
             let normal = simd_normalize(wall.normal)
             // Tangent runs along the wall (perpendicular to normal, in the floor plane)
             var tangent = simd_normalize(simd_cross(up, normal))
@@ -367,10 +369,11 @@ class FloorPlanGenerator {
         let offsetDistance: Float = 0.4 // Offset dimension line from wall
         
         for wall in wallsToAnnotate {
-            guard let length = wall.length else { continue }
+            let length = wall.length
+            guard length > 0 else { continue }
             
             let position = wall.position
-            let thickness = wall.thickness ?? defaultThickness
+            let thickness = wall.thickness
             let normal = simd_normalize(wall.normal)
             var tangent = simd_normalize(simd_cross(up, normal))
             
@@ -462,8 +465,9 @@ class FloorPlanGenerator {
         context.addLine(to: CGPoint(x: scaleBarX + scaleBarLength, y: scaleBarY + 5))
         context.strokePath()
         
-        // Draw scale label
-        let scaleText = "2m"
+        // Draw scale label (show both meters and feet)
+        let scaleFeet = MeasurementHelper.toFeet(2.0)
+        let scaleText = String(format: "2 m (%.2f ft)", scaleFeet)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 14, weight: .semibold),
             .foregroundColor: textColor
@@ -474,7 +478,7 @@ class FloorPlanGenerator {
         // Draw room dimensions
         let roomWidth = bounds.maxX - bounds.minX
         let roomHeight = bounds.maxZ - bounds.minZ
-        let dimensionsText = String(format: "%.2f m × %.2f m", roomWidth, roomHeight)
+        let dimensionsText = "\(MeasurementHelper.formatDistanceDual(roomWidth)) × \(MeasurementHelper.formatDistanceDual(roomHeight))"
         let dimAttributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 12, weight: .regular),
             .foregroundColor: textColor

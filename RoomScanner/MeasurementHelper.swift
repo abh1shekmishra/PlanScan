@@ -227,6 +227,11 @@ struct MeasurementHelper {
     static func toSquareFeet(_ squareMeters: Float) -> Float {
         return squareMeters * 10.764
     }
+
+    /// Convert meters to feet
+    static func toFeet(_ meters: Float) -> Float {
+        return meters * 3.28084
+    }
     
     // MARK: - Formatting
     
@@ -238,6 +243,18 @@ struct MeasurementHelper {
     /// Format area with appropriate unit
     static func formatArea(_ squareMeters: Float, precision: Int = 2) -> String {
         return String(format: "%.\(precision)f m²", squareMeters)
+    }
+
+    /// Format distance showing both meters and feet
+    static func formatDistanceDual(_ meters: Float, precision: Int = 2) -> String {
+        let feet = toFeet(meters)
+        return String(format: "%.2f m (%.2f ft)", meters, feet)
+    }
+
+    /// Format area showing both square meters and square feet
+    static func formatAreaDual(_ squareMeters: Float, precision: Int = 2) -> String {
+        let sqFt = toSquareFeet(squareMeters)
+        return String(format: "%.2f m² (%.2f ft²)", squareMeters, sqFt)
     }
     
     /// Format angle in degrees
